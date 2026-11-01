@@ -483,8 +483,15 @@
         .light-mode #soundbarProgressFill { background: #f6bf7b; box-shadow: 0 0 0.4rem rgba(246, 191, 123, 0.65); }
         .light-mode .loading-spinner { border-color: rgba(246, 191, 123, 0.35); border-top-color: #f6bf7b; }
         #soundbar.hidden { display: none; }
-        .soundcloud-player { position: fixed; width: 32px; height: 32px; opacity: 0; pointer-events: none; }
-        .spotify-player { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+        /* Spotify's iframe API replaces the container element with its embed
+           iframe and marks that iframe loading="lazy". The iframe lands at the
+           end of <body>, which on long pages sits far below the viewport, so
+           Chrome defers it forever and playback silently never starts. Pin the
+           container and the API-created iframe itself to the viewport corner
+           so the embed always counts as near-visible. */
+        .soundcloud-player { position: fixed; top: 0; left: 0; width: 32px; height: 32px; opacity: 0; pointer-events: none; }
+        .spotify-player { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+        body > iframe[src^="https://open.spotify.com/embed"] { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
         .light-mode .bg-amber-900\/30 {
             background-color: #dd5e3c !important;
             border-color: #b94a2e !important;
