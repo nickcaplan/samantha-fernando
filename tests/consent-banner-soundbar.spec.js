@@ -60,6 +60,28 @@ test('soundbar returns to the viewport edge once the choice is made @mobile', as
   })).toBe(true);
 });
 
+test('failure notice stays clear of the lifted soundbar on a short viewport @mobile', async ({ page }) => {
+  // Enlarged text on a short viewport caps the lift: the bar sits at the top
+  // edge and the banner scrolls beneath it. A playback failure notice must
+  // land in the band below the bar - on-screen, and never over the bar's
+  // controls.
+  await page.setViewportSize({ width: 320, height: 420 });
+  // The notice element lives in the Listen tab's markup.
+  await page.goto('/listen/');
+  await page.evaluate(() => document.documentElement.style.fontSize = '32px');
+  await revealSoundbar(page);
+  await expectClearOfBanner(page);
+  await page.evaluate(() => document.getElementById('audioAvailabilityMessage').classList.remove('hidden'));
+  const geo = await page.evaluate(() => {
+    const n = document.getElementById('audioAvailabilityMessage').getBoundingClientRect();
+    const s = document.getElementById('soundbar').getBoundingClientRect();
+    return { noticeTop: n.top, noticeBottom: n.bottom, barBottom: s.bottom, vh: innerHeight };
+  });
+  expect(geo.noticeTop).toBeGreaterThanOrEqual(geo.barBottom - 0.5);
+  expect(geo.noticeTop).toBeGreaterThanOrEqual(-0.5);
+  expect(geo.noticeBottom).toBeLessThanOrEqual(geo.vh + 0.5);
+});
+
 test('reopening the choice from Cookie preferences lifts the soundbar again', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/privacy/');

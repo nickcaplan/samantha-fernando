@@ -435,15 +435,17 @@
            not a notice scrolled out of view in the catalogue flow. */
         #audioAvailabilityMessage:not(.hidden) {
             position: fixed;
-            /* The consent lift is capped near the viewport top when banner
-               and bar cannot both fit; the notice caps its own position
-               separately so a playback failure never reads off-screen. */
-            bottom: max(5.5rem, min(calc(var(--soundbar-offset, 0px) + var(--consent-banner-offset, 0px) + 0.5rem), calc(100vh - 9rem)));
+            /* When banner and bar cannot both fit, the lift is capped and the
+               bar sits at the viewport top. The notice then caps its own
+               position to the band directly below the bar - never off-screen,
+               never over the bar's controls - and floats above the banner,
+               which scrolls beneath it. */
+            bottom: min(max(5.5rem, calc(var(--soundbar-offset, 0px) + var(--consent-banner-offset, 0px) + 0.5rem)), calc(100vh - var(--soundbar-offset, 0px) - 8.5rem));
             max-height: min(calc(100vh - var(--soundbar-offset, 0px) - 2rem), 8rem);
             overflow-y: auto;
             left: 50%;
             transform: translateX(-50%);
-            z-index: 50;
+            z-index: 80;
             max-width: min(90vw, 32rem);
             box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
         }
