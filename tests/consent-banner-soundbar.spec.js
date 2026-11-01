@@ -84,6 +84,41 @@ test('failure notice stays clear of the lifted soundbar on a short viewport @mob
   })).toBe(true);
 });
 
+test('consent buttons stay clickable while the failure notice bands below the bar @mobile', async ({ page }) => {
+  // 320x240 with 200% text cannot fit bar, notice and banner at once. The
+  // banner scrolls over the (non-interactive) notice as a last resort, but
+  // its Accept and Reject buttons must stay independently clickable: the
+  // analytics choice can never be trapped behind a playback failure.
+  await page.setViewportSize({ width: 320, height: 240 });
+  await page.goto('/listen/');
+  await page.evaluate(() => document.documentElement.style.fontSize = '32px');
+  await revealSoundbar(page);
+  await expectClearOfBanner(page);
+  await page.evaluate(() => {
+    const notice = document.getElementById('audioAvailabilityMessage');
+    notice.textContent = "SoundCloud couldn't start playback. Check your connection or try again.";
+    notice.classList.remove('hidden');
+  });
+  // The band reservation settles through the ResizeObserver; assert it, then
+  // scroll the banner to its end, where the buttons live.
+  await expect.poll(() => page.evaluate(() =>
+    document.documentElement.classList.contains('failure-notice-below-bar'))).toBe(true);
+  for (const name of ['Reject', 'Accept']) {
+    const result = await page.evaluate((buttonName) => {
+      const banner = document.getElementById('cookieConsentBanner');
+      banner.scrollTop = banner.scrollHeight;
+      const button = [...banner.querySelectorAll('button')].find(b => b.textContent.trim() === buttonName);
+      button.scrollIntoView({ block: 'center' });
+      const r = button.getBoundingClientRect();
+      const cx = Math.min(Math.max(r.left + r.width / 2, 1), innerWidth - 1);
+      const cy = Math.min(Math.max(r.top + r.height / 2, 1), innerHeight - 1);
+      const hit = document.elementFromPoint(cx, cy);
+      return { clickable: hit === button || button.contains(hit), top: r.top, bottom: r.bottom };
+    }, name);
+    expect(result.clickable, `${name} must receive its own clicks`).toBe(true);
+  }
+});
+
 test('privacy notice dialog opens above a visible failure notice', async ({ page }) => {
   // Band mode puts the failure notice at z-index 80, above the dialog's old
   // z-index 70: after a playback failure the Cookie preferences modal could
