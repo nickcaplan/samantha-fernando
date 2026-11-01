@@ -58,7 +58,7 @@ Record only decisions that constrain future work. Implementation history and com
 
 - Use the real page in a `430px` iframe for desktop mobile preview. Do not create preview-only responsive CSS.
 - Keep compact mobile layout rules in the page's narrow-screen media queries, including the 3.5rem header, icon-only narrow-phone sound control, persistent top-right menu close control and 13rem hero portrait.
-- Keep the navigation drawer available below 1024px; show the full navigation from 1024px. Keep phone-only content styling below 768px. Let header/footer controls wrap and content grids reflow with enlarged text rather than clipping horizontal page overflow.
+- Keep the navigation drawer available below 1024px; show the full navigation from 1024px. When the responsive mode swap or closing the drawer hides the focused navigation control, move focus to the equivalent control in the new mode (the matching desktop link, or the menu toggle when the drawer links are not visible) rather than dropping it to the document body. Keep phone-only content styling below 768px. Let header/footer controls wrap and content grids reflow with enlarged text rather than clipping horizontal page overflow.
 - Preload `assets/sam-1-1200.webp` for the homepage hero. Load the smaller `assets/sam-6-800.webp` contact portrait eagerly at low priority.
 - Load the visible Writing portrait (`assets/sam-3.webp`) eagerly at high priority; keep below-the-fold catalogue and video thumbnails lazy-loaded.
 
