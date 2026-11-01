@@ -3068,12 +3068,29 @@
         // never steals focus back.
         const navDesktopQuery = window.matchMedia('(min-width: 1024px)');
         document.addEventListener('focusout', (event) => {
-            const link = event.target.closest?.('.nav-btn, .mobile-nav-btn');
-            if (!link || link.offsetParent !== null) return;
-            const key = link.id.startsWith('nav-') ? link.id.slice(4) : link.dataset.mobileNav;
-            if (!key) return;
+            // Page navigation moves focus to the new main heading; the drawer
+            // link that triggered it then blurs. That blur must not steal the
+            // heading's focus back to a navigation control.
+            if (event.relatedTarget?.matches?.('main h1')) return;
+            const target = event.target;
+            const link = target.closest?.('.nav-btn, .mobile-nav-btn');
+            const isNavControl = link || target.id === 'mobileMenuToggle' || target.matches?.('#mobileMenu a');
+            if (!isNavControl || target.offsetParent !== null) return;
+            if (link) {
+                const key = link.id.startsWith('nav-') ? link.id.slice(4) : link.dataset.mobileNav;
+                if (key) {
+                    if (navDesktopQuery.matches) {
+                        document.getElementById(`nav-${key}`)?.focus();
+                    } else {
+                        document.getElementById('mobileMenuToggle')?.focus();
+                    }
+                    return;
+                }
+            }
+            // The menu toggle and the drawer's follow links have no desktop
+            // counterpart: land on a visible navigation control in the new mode.
             if (navDesktopQuery.matches) {
-                document.getElementById(`nav-${key}`)?.focus();
+                document.querySelector('.nav-btn')?.focus();
             } else {
                 document.getElementById('mobileMenuToggle')?.focus();
             }

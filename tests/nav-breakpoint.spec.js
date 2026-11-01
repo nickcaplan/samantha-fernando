@@ -46,6 +46,33 @@ async function keyboardNavigateToWatch(page, mode) {
   await expect(page.locator('#mobileMenu')).toBeHidden();
 }
 
+// After a breakpoint swap the test must drive from the focus the page
+// recovered, not re-establish it: locator.press() focuses its target first
+// and a toggle click would replace the recovered focus, so both would hide a
+// broken recovery. Only page.keyboard input from the recovered control proves
+// a single keyboard journey still reaches the destination.
+async function keyboardActivateFromRecoveredFocus(page, mode) {
+  if (mode === 'compact') {
+    // Recovered focus sits on the menu toggle: open the drawer, then tab
+    // forward until the Watch link itself holds focus.
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#mobileMenuToggle')).toHaveAttribute('aria-expanded', 'true');
+    const watch = page.locator('[data-mobile-nav="watch"]');
+    await expect(watch).toBeVisible();
+    for (let i = 0; i < 12; i++) {
+      if (await watch.evaluate(el => el === document.activeElement)) break;
+      await page.keyboard.press('Tab');
+    }
+    await expect(watch).toBeFocused();
+  } else {
+    // Recovered focus sits on the desktop Watch link itself.
+    await expect(page.locator('#nav-watch')).toBeFocused();
+  }
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/watch\/$/);
+  await expect(page.locator('#mobileMenu')).toBeHidden();
+}
+
 for (const width of [1023, 1025]) {
   test(`keyboard navigation works ${width === 1023 ? 'just below' : 'just above'} the desktop breakpoint (${width}px)`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
@@ -57,6 +84,42 @@ for (const width of [1023, 1025]) {
     await keyboardNavigateToWatch(page, mode);
   });
 }
+
+test('drawer navigation keeps focus on the new page heading @mobile', async ({ page }) => {
+  // Activating a drawer link moves focus to the incoming page's main heading.
+  // The link's own blur as the drawer hides must not steal that focus back to
+  // a navigation control (Chromium can cancel the original focus otherwise).
+  await page.setViewportSize({ width: 900, height: 1000 });
+  await page.goto('/');
+  await page.evaluate(() => document.fonts.ready);
+  await page.getByRole('button', { name: 'Reject', exact: true }).click();
+  await openCompactMenu(page);
+  await page.locator('[data-mobile-nav="watch"]').press('Enter');
+  await expect(page).toHaveURL(/\/watch\/$/);
+  await expect(page.locator('#mobileMenu')).toBeHidden();
+  await expect(page.locator('main h1')).toBeFocused();
+  await expect(page.locator('#mobileMenuToggle')).not.toBeFocused();
+});
+
+test('swap to desktop recovers focus from the menu toggle and drawer follow links', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 1000 });
+  await page.goto('/');
+  await page.evaluate(() => document.fonts.ready);
+  await page.getByRole('button', { name: 'Reject', exact: true }).click();
+  await openCompactMenu(page);
+
+  for (const target of ['#mobileMenuToggle', '#mobileMenu .mobile-menu-follow a']) {
+    const control = page.locator(target).first();
+    await expect(control).toBeVisible();
+    await control.focus();
+    await expect(control).toBeFocused();
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    // Neither control exists on desktop: focus lands on a visible nav link.
+    await expect(page.locator('.nav-btn').first()).toBeFocused();
+    await page.setViewportSize({ width: 900, height: 1000 });
+    await expect(page.locator('#mobileMenuToggle')).toBeFocused();
+  }
+});
 
 for (const { startWidth, targetWidth, startMode, endMode } of [
   { startWidth: 900, targetWidth: 1280, startMode: 'compact', endMode: 'desktop' },
@@ -94,6 +157,6 @@ for (const { startWidth, targetWidth, startMode, endMode } of [
     }
 
     // A single keyboard activation from the recovered focus reaches the destination.
-    await keyboardNavigateToWatch(page, endMode);
+    await keyboardActivateFromRecoveredFocus(page, endMode);
   });
 }
