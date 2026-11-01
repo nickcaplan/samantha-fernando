@@ -344,6 +344,39 @@
                 grid-template-columns: repeat(3, minmax(0, 1fr));
             }
         }
+        /* Enlarged text can make the privacy dialog taller than the viewport;
+           the fixed centring then clips its top and hides the close control.
+           Cap the panel to the viewport and scroll the body copy instead, so
+           the heading and close button stay visible at any zoom. */
+        #privacyNoticeDialog > div {
+            max-height: 100%;
+            overflow-y: auto;
+            position: relative;
+        }
+        #privacyNoticeDialog > div {
+            max-height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        /* The close control sits in its own non-scrolling strip; only the
+           region below it scrolls, so copy can never share its space. */
+        #privacyNoticeControls {
+            flex: none;
+            display: flex;
+            justify-content: flex-end;
+            padding-bottom: 0.5rem;
+        }
+        #privacyNoticeBody:focus-visible {
+            outline: 3px solid var(--color-focus);
+            outline-offset: -3px;
+        }
+        #privacyNoticeDialog > div > div:last-child {
+            overflow-y: auto;
+            min-height: 0;
+            /* Same emergency wrap the site applies elsewhere: a word wider
+               than the column at extreme zoom wraps instead of clipping. */
+            overflow-wrap: anywhere;
+        }
         #waveContainer { display: none; }
         [data-tooltip] { position: relative; }
         [data-tooltip]::after {
@@ -450,8 +483,15 @@
         .light-mode #soundbarProgressFill { background: #f6bf7b; box-shadow: 0 0 0.4rem rgba(246, 191, 123, 0.65); }
         .light-mode .loading-spinner { border-color: rgba(246, 191, 123, 0.35); border-top-color: #f6bf7b; }
         #soundbar.hidden { display: none; }
-        .soundcloud-player { position: fixed; width: 32px; height: 32px; opacity: 0; pointer-events: none; }
-        .spotify-player { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+        /* Spotify's iframe API replaces the container element with its embed
+           iframe and marks that iframe loading="lazy". The iframe lands at the
+           end of <body>, which on long pages sits far below the viewport, so
+           Chrome defers it forever and playback silently never starts. Pin the
+           container and the API-created iframe itself to the viewport corner
+           so the embed always counts as near-visible. */
+        .soundcloud-player { position: fixed; top: 0; left: 0; width: 32px; height: 32px; opacity: 0; pointer-events: none; }
+        .spotify-player { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+        body > iframe[src^="https://open.spotify.com/embed"] { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
         .light-mode .bg-amber-900\/30 {
             background-color: #dd5e3c !important;
             border-color: #b94a2e !important;
@@ -957,14 +997,16 @@
 
     <div id="privacyNoticeDialog" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/80 p-4" role="dialog" aria-modal="true" aria-labelledby="privacyNoticeTitle">
         <div class="glass-panel w-full max-w-xl rounded-2xl border border-neutral-700 p-6 shadow-2xl">
-            <div class="flex items-start justify-between gap-6">
-                <h2 id="privacyNoticeTitle" class="font-serif text-2xl text-neutral-100">Analytics and privacy</h2>
+            <div id="privacyNoticeControls">
                 <button id="closePrivacyNotice" type="button" class="text-neutral-400 hover:text-white" aria-label="Close analytics and privacy notice"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
             </div>
+            <div id="privacyNoticeBody" tabindex="0" role="region" aria-labelledby="privacyNoticeTitle">
+                <h2 id="privacyNoticeTitle" class="font-serif text-2xl text-neutral-100">Analytics and privacy</h2>
             <div class="mt-5 space-y-4 text-sm leading-relaxed text-neutral-300">
                 <p>If you accept analytics, this site loads Google Analytics. It helps Samantha understand aggregate visits, pages viewed, referral sources, device and browser categories, and approximate location.</p>
                 <p>Google Analytics may set cookies or use similar storage after you accept. The site does not load Google Analytics before you accept. Do not submit personally identifiable information through the site for analytics purposes.</p>
                 <p>You can change this choice at any time on the <span class="text-neutral-100">Privacy page</span>, linked in the footer. For questions about the website, use the contact form.</p>
+            </div>
             </div>
         </div>
     </div>
@@ -3075,6 +3117,42 @@
         new ResizeObserver(updateMobileMenuSpace).observe(document.querySelector('header'));
         window.addEventListener('resize', updateMobileMenuSpace);
         window.visualViewport?.addEventListener('resize', updateMobileMenuSpace);
+
+        // When the responsive mode swap (or closing the drawer) hides the
+        // focused navigation control, the browser drops focus to the document
+        // body. Move it to the equivalent control in the new mode instead: the
+        // matching desktop link, or the menu toggle when the drawer links are
+        // not visible. Ordinary tab-away leaves the blurred link visible and
+        // never steals focus back.
+        const navDesktopQuery = window.matchMedia('(min-width: 1024px)');
+        document.addEventListener('focusout', (event) => {
+            // Page navigation moves focus to the new main heading; the drawer
+            // link that triggered it then blurs. That blur must not steal the
+            // heading's focus back to a navigation control.
+            if (event.relatedTarget?.matches?.('main h1')) return;
+            const target = event.target;
+            const link = target.closest?.('.nav-btn, .mobile-nav-btn');
+            const isNavControl = link || target.id === 'mobileMenuToggle' || target.matches?.('#mobileMenu a');
+            if (!isNavControl || target.offsetParent !== null) return;
+            if (link) {
+                const key = link.id.startsWith('nav-') ? link.id.slice(4) : link.dataset.mobileNav;
+                if (key) {
+                    if (navDesktopQuery.matches) {
+                        document.getElementById(`nav-${key}`)?.focus();
+                    } else {
+                        document.getElementById('mobileMenuToggle')?.focus();
+                    }
+                    return;
+                }
+            }
+            // The menu toggle and the drawer's follow links have no desktop
+            // counterpart: land on a visible navigation control in the new mode.
+            if (navDesktopQuery.matches) {
+                document.querySelector('.nav-btn')?.focus();
+            } else {
+                document.getElementById('mobileMenuToggle')?.focus();
+            }
+        });
 
         function toggleMobileMenu() {
             updateMobileMenuSpace();
