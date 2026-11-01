@@ -845,6 +845,10 @@ test('header Listen opens the soundbar for the default track', async ({ page }) 
 test('soundbar is anchored to the viewport bottom with readable theme colours', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('theme', 'dark'));
   await page.goto('/');
+  // Answer the analytics choice: while it is unanswered the bar deliberately
+  // lifts above the consent banner instead of sitting at the viewport edge
+  // (see tests/consent-banner-soundbar.spec.js).
+  await page.getByRole('button', { name: 'Reject', exact: true }).click();
   await page.locator('#ambientSoundBtn').click();
 
   const soundbar = page.locator('#soundbar');
