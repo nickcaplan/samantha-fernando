@@ -84,6 +84,29 @@ test('failure notice stays clear of the lifted soundbar on a short viewport @mob
   })).toBe(true);
 });
 
+test('privacy notice dialog opens above a visible failure notice', async ({ page }) => {
+  // Band mode puts the failure notice at z-index 80, above the dialog's old
+  // z-index 70: after a playback failure the Cookie preferences modal could
+  // open UNDER the notice. The dialog must stay topmost and clickable.
+  await page.setViewportSize({ width: 320, height: 420 });
+  await page.goto('/listen/');
+  await page.evaluate(() => document.documentElement.style.fontSize = '32px');
+  await revealSoundbar(page);
+  await expectClearOfBanner(page);
+  await page.evaluate(() => document.getElementById('audioAvailabilityMessage').classList.remove('hidden'));
+  await page.locator('#openPrivacyNotice').scrollIntoViewIfNeeded();
+  await page.locator('#openPrivacyNotice').click();
+  const dialog = page.locator('#privacyNoticeDialog');
+  await expect(dialog).toBeVisible();
+  // The dialog, not the notice, receives the pointer at its own centre.
+  await expect.poll(() => page.evaluate(() => {
+    const d = document.getElementById('privacyNoticeDialog').getBoundingClientRect();
+    const el = document.elementFromPoint(d.left + d.width / 2, d.top + d.height / 2);
+    return !!el && !!el.closest('#privacyNoticeDialog');
+  })).toBe(true);
+  await page.keyboard.press('Escape');
+});
+
 test('reopening the choice from Cookie preferences lifts the soundbar again', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/privacy/');
