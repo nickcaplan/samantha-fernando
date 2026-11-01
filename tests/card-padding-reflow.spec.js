@@ -8,9 +8,13 @@ const { test, expect } = require('@playwright/test');
 // unusually long future words is preserved, not disabled.
 const routes = ['/', '/writing/', '/biography/', '/listen/', '/watch/', '/works/'];
 const cardHeadings = '#featured-projects article h3, #tab-writing article h3, #tab-bio aside h2, .works-catalogue h3';
+// The title words this fix protects at 320px/200%; emergency wrapping for
+// physically over-wide words ("Positive/Negative") stays allowed.
+const affectedTokens = ['Creative', 'Illuminations', 'TRAPPIST-', 'Milestones'];
 
 for (const width of [320, 390, 1440]) for (const theme of ['light', 'dark']) {
   test(`card title words stay intact ${width}px ${theme}${width < 768 ? ' @mobile' : ''}`, async ({ page }) => {
+    const seenAffected = new Set();
     for (const route of routes) {
       await page.setViewportSize({ width, height: 1000 });
       // Seed the answered analytics choice before navigation: waiting for a
@@ -27,8 +31,8 @@ for (const width of [320, 390, 1440]) for (const theme of ['light', 'dark']) {
         await page.evaluate(s => document.documentElement.style.fontSize = 16 * s + 'px', scale);
         // A route with no visible matching heading must fail, not pass
         // vacuously on an empty split list.
-        const probe = await page.locator(cardHeadings).evaluateAll(es => {
-          const out = { visible: 0, split: [] };
+        const probe = await page.locator(cardHeadings).evaluateAll((es, targets) => {
+          const out = { visible: 0, split: [], seen: [] };
           for (const e of es) {
             let headingVisible = false;
             const walker = document.createTreeWalker(e, NodeFilter.SHOW_TEXT);
@@ -40,12 +44,13 @@ for (const width of [320, 390, 1440]) for (const theme of ['light', 'dark']) {
                 if (rects.length) headingVisible = true;
                 const lines = new Set(rects.map(r => Math.round(r.top)));
                 if (lines.size > 1) out.split.push(`${e.textContent.trim()}: ${m[0]}`);
+                if (targets.includes(m[0])) out.seen.push(m[0]);
               }
             }
             if (headingVisible) out.visible++;
           }
           return out;
-        });
+        }, affectedTokens);
         expect(probe.visible, `${route} shows card headings at ${width}px ${theme} scale ${scale}`).toBeGreaterThan(0);
         const split = probe.split;
         // At 320px with 200% text one long compound title word
@@ -58,7 +63,7 @@ for (const width of [320, 390, 1440]) for (const theme of ['light', 'dark']) {
           // ("Positive/Negative"), but the titles this fix targets must no
           // longer split. Entry format is `${heading}: ${token}`; the token
           // has no whitespace, so the last ': ' is an unambiguous separator.
-          const affectedTokens = ['Creative', 'Illuminations', 'TRAPPIST-', 'Milestones'];
+          probe.seen.forEach(t => seenAffected.add(t));
           const affectedSplits = split.filter(entry => affectedTokens.includes(entry.slice(entry.lastIndexOf(': ') + 2)));
           expect(affectedSplits, `${route} at ${width}px ${theme} scale ${scale}`).toEqual([]);
           expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -68,6 +73,12 @@ for (const width of [320, 390, 1440]) for (const theme of ['light', 'dark']) {
           expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         }
       }
+    }
+    if (width === 320) {
+      // The split assertion is only meaningful if every protected heading was
+      // actually scanned somewhere in the matrix: fail loudly when one is
+      // missing instead of passing vacuously.
+      expect(affectedTokens.filter(t => !seenAffected.has(t)), 'every protected title word is scanned at 320px').toEqual([]);
     }
   });
 }
