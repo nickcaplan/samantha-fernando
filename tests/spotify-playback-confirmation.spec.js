@@ -1242,7 +1242,7 @@ test('repeated pauses keep resuming where they stopped (real embed semantics)', 
 });
 
 test('selecting a different track after a pause still starts from zero (real embed semantics)', async ({ page }) => {
-  await mockSpotify(page, { realistic: true });
+  await mockSpotify(page, { realistic: true, tickMs: 2000 });
   await page.goto('/listen/');
 
   const everythingPassesCard = page.locator('#worksContainer [data-spotify-track="3YV79qjiJLOgYjjEzTsVEy"]');
@@ -1255,7 +1255,7 @@ test('selecting a different track after a pause still starts from zero (real emb
   await expect(page.locator('#soundbarTitle')).toHaveText('Everything Passes, Everything is Connected');
   // A fresh track is a fresh request: reload, seek to zero, play from zero.
   await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:00');
-  await waitForElapsed(page, 1);
+  await waitForElapsed(page, 2);
 
   const calls = await page.evaluate(() => window.__spotifyCalls);
   expect(calls).toEqual([
@@ -1270,7 +1270,7 @@ test('selecting a different track after a pause still starts from zero (real emb
 });
 
 test('replaying a finished track starts from zero (real embed semantics)', async ({ page }) => {
-  await mockSpotify(page, { realistic: true, durationMs: 4000 });
+  await mockSpotify(page, { realistic: true, durationMs: 4000, tickMs: 2000 });
   await page.goto('/listen/');
 
   await balconiesCard(page).click();
@@ -1280,7 +1280,7 @@ test('replaying a finished track starts from zero (real embed semantics)', async
 
   await balconiesCard(page).click();
   await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:00');
-  await waitForElapsed(page, 1);
+  await waitForElapsed(page, 2);
 
   const calls = await page.evaluate(() => window.__spotifyCalls);
   expect(calls).toEqual([
@@ -1295,7 +1295,7 @@ test('replaying a finished track starts from zero (real embed semantics)', async
 
 
 test('replaying a finished track from the soundbar starts from zero (real embed semantics)', async ({ page }) => {
-  await mockSpotify(page, { realistic: true, durationMs: 4000 });
+  await mockSpotify(page, { realistic: true, durationMs: 4000, tickMs: 2000 });
   await page.goto('/listen/');
 
   await balconiesCard(page).click();
@@ -1305,15 +1305,20 @@ test('replaying a finished track from the soundbar starts from zero (real embed 
 
   // The soundbar toggle on a finished track replays it from the beginning.
   await page.locator('#soundbarPauseBtn').click();
-  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Pause playback');
+  // The bar restarts from zero as soon as the replay is requested; the
+  // playing-state flip follows on the player's first report, so check the
+  // reset first.
   await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:00');
-  await waitForElapsed(page, 1);
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Pause playback');
+  await waitForElapsed(page, 2);
 
   const calls = await page.evaluate(() => window.__spotifyCalls);
   expect(calls).toEqual([
     ['loadUri', 'spotify:track:2wNL47uCuwDpbOqCIpbSTS'],
     ['seek', 0],
     ['play'],
+    ['loadUri', 'spotify:track:2wNL47uCuwDpbOqCIpbSTS'],
+    ['seek', 0],
     ['play'],
   ]);
 });

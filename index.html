@@ -2650,10 +2650,13 @@
                     spotifyController.pause();
                     setSpotifyPlaybackState(false, activeSpotifyTrack);
                 } else if (isPlaybackStopped) {
-                    // A finished track has nothing to resume: play() restarts
-                    // the loaded track from the beginning, which is the
-                    // replay the listener asked for.
+                    // A finished track has nothing to resume: reload it and
+                    // start from the beginning, the same fresh-replay path
+                    // that re-selecting the track takes.
                     isPlaybackStopped = false;
+                    spotifyElapsedMs = 0;
+                    spotifyController.loadUri(`spotify:track:${currentTrackId}`);
+                    spotifyController.seek(0);
                     spotifyController.play();
                     armSpotifyLoading(currentTrackId);
                 } else {
