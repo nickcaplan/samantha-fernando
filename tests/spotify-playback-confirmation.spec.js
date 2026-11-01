@@ -19,6 +19,10 @@ async function mockSpotify(page, { deferControllerCallback = false, deferApiRead
         // pass through behaviour the real player does not have: play()
         // restarts the loaded track from zero, resume() continues from the
         // paused position, and seek() takes seconds.
+        // Player method calls report back asynchronously on the real embed,
+        // after the site has finished arming its pending state; fire method
+        // events on a zero timer so the mock matches that ordering.
+        const fireSoon = () => setTimeout(fire, 0);
         const fire = () => {
           const handler = window.__spotifyHandlers.playback_update;
           if (handler && state.uri) {
@@ -55,7 +59,7 @@ async function mockSpotify(page, { deferControllerCallback = false, deferApiRead
               state.positionMs = 0;
               state.started = true;
               state.paused = false;
-              fire();
+              fireSoon();
               startTimer();
             }
           },
@@ -65,7 +69,7 @@ async function mockSpotify(page, { deferControllerCallback = false, deferApiRead
               if (!state.started) state.positionMs = 0;
               state.started = true;
               state.paused = false;
-              fire();
+              fireSoon();
               startTimer();
             }
           },
@@ -81,7 +85,7 @@ async function mockSpotify(page, { deferControllerCallback = false, deferApiRead
             if (realistic) {
               state.paused = true;
               stopTimer();
-              fire();
+              fireSoon();
             }
           },
           destroy: () => {
@@ -1320,5 +1324,31 @@ test('replaying a finished track from the soundbar starts from zero (real embed 
     ['loadUri', 'spotify:track:2wNL47uCuwDpbOqCIpbSTS'],
     ['seek', 0],
     ['play'],
+  ]);
+});
+
+test('pausing inside the final moments still resumes instead of restarting (real embed semantics)', async ({ page }) => {
+  await mockSpotify(page, { realistic: true, durationMs: 4000, tickMs: 3900 });
+  await page.goto('/listen/');
+
+  await balconiesCard(page).click();
+  // The first position report lands inside the track's final 250 ms.
+  await waitForElapsed(page, 3);
+  await page.locator('#soundbarPauseBtn').click();
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
+
+  // A visitor pause this close to the end is still a pause: the track
+  // resumes from where it stopped rather than reloading from zero.
+  await page.locator('#soundbarPauseBtn').click();
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Pause playback');
+  await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:03');
+
+  const calls = await page.evaluate(() => window.__spotifyCalls);
+  expect(calls).toEqual([
+    ['loadUri', 'spotify:track:2wNL47uCuwDpbOqCIpbSTS'],
+    ['seek', 0],
+    ['play'],
+    ['pause'],
+    ['resume'],
   ]);
 });

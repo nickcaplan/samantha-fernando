@@ -1760,6 +1760,10 @@
         let activeWorksView = 'all';
         let isAudioPlaying = false;
         let isPlaybackStopped = false;
+        // Set whenever the site itself pauses the player, so a paused update
+        // that answers a visitor's pause is never mistaken for the track
+        // having played to its end.
+        let spotifyPauseRequested = false;
         let projectModalTrigger = null;
         let videoModalTrigger = null;
 
@@ -2412,6 +2416,7 @@
                 // Confirmation must belong to a live request: an event after a
                 // cancellation or stop is stale and must not revive the bar.
                 if (!spotifyPlaybackPending && !isSpotifyPlaying) return;
+                spotifyPauseRequested = false;
                 // A buffering report is not playback: a pending request stays
                 // pending (and the watchdog keeps running) until the player
                 // reports actual playback.
@@ -2431,10 +2436,14 @@
             if (data.isPaused === true && !spotifyPlaybackPending && (isSpotifyPlaying || spotifyController)) {
                 if (typeof data.position === 'number') spotifyElapsedMs = data.position;
                 if (typeof data.duration === 'number' && data.duration > 0) trackDurationMs = data.duration;
-                if (trackDurationMs && spotifyElapsedMs >= trackDurationMs - 250) {
+                // Only a pause the player raised itself can be the track
+                // ending: a visitor pausing inside the final moments still
+                // holds a paused track to resume, not a finished one.
+                if (!spotifyPauseRequested && trackDurationMs && spotifyElapsedMs >= trackDurationMs - 250) {
                     spotifyElapsedMs = trackDurationMs;
                     isPlaybackStopped = true;
                 }
+                spotifyPauseRequested = false;
                 setSpotifyPlaybackState(false, activeSpotifyTrack || currentTrackId);
             }
         }
@@ -2492,6 +2501,7 @@
                     return;
                 }
                 if (wasActiveSelection && activeSpotifyTrack === trackId && isSpotifyPlaying) {
+                    spotifyPauseRequested = true;
                     spotifyController.pause();
                     setSpotifyPlaybackState(false, trackId);
                     return;
@@ -2647,6 +2657,7 @@
                     return;
                 }
                 if (isSpotifyPlaying) {
+                    spotifyPauseRequested = true;
                     spotifyController.pause();
                     setSpotifyPlaybackState(false, activeSpotifyTrack);
                 } else if (isPlaybackStopped) {
