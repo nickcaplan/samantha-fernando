@@ -376,6 +376,7 @@
             /* Same emergency wrap the site applies elsewhere: a word wider
                than the column at extreme zoom wraps instead of clipping. */
             overflow-wrap: anywhere;
+        }
 
         /* When enlarged text makes the banner and the lifted soundbar
            together taller than the viewport, the banner scrolls within the
@@ -390,6 +391,9 @@
            never off-screen, never over the bar's controls. The band's
            geometry comes from the offset calculation, which knows the real
            rendered heights. */
+        /* The privacy modal must stay topmost: band mode puts the failure
+           notice at z-index 80, above the dialog's utility z-index 70. */
+        #privacyNoticeDialog { z-index: 95; }
         .failure-notice-below-bar #audioAvailabilityMessage:not(.hidden) {
             bottom: max(0px, var(--failure-notice-bottom, 0px));
             max-height: var(--failure-notice-max-height, 8rem);
@@ -997,7 +1001,7 @@
         </div>
     </section>
 
-    <div id="privacyNoticeDialog" class="fixed inset-0 z-[95] hidden items-center justify-center bg-black/80 p-4" role="dialog" aria-modal="true" aria-labelledby="privacyNoticeTitle">
+    <div id="privacyNoticeDialog" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/80 p-4" role="dialog" aria-modal="true" aria-labelledby="privacyNoticeTitle">
         <div class="glass-panel w-full max-w-xl rounded-2xl border border-neutral-700 p-6 shadow-2xl">
             <div id="privacyNoticeControls">
                 <button id="closePrivacyNotice" type="button" class="text-neutral-400 hover:text-white" aria-label="Close analytics and privacy notice"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
