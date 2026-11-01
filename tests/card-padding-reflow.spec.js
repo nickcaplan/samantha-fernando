@@ -13,11 +13,14 @@ for (const width of [320, 390, 1440]) for (const theme of ['light', 'dark']) {
   test(`card title words stay intact ${width}px ${theme}${width < 768 ? ' @mobile' : ''}`, async ({ page }) => {
     for (const route of routes) {
       await page.setViewportSize({ width, height: 1000 });
-      await page.addInitScript(t => localStorage.setItem('theme', t), theme);
+      // Seed the answered analytics choice before navigation: waiting for a
+      // Reject button that stays hidden after the first route idled each
+      // matrix case for seconds per route.
+      await page.addInitScript(t => {
+        localStorage.setItem('theme', t);
+        localStorage.setItem('analyticsConsent', 'rejected');
+      }, theme);
       await page.goto(route);
-      // The choice persists across the route loop within this context.
-      const reject = page.getByRole('button', { name: 'Reject', exact: true });
-      await reject.waitFor({ timeout: 3000 }).then(() => reject.click()).catch(() => {});
       await page.evaluate(() => document.fonts.ready);
       await page.locator('main .glass-panel').first().waitFor();
       for (const scale of [1, 2]) {
