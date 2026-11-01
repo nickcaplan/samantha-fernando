@@ -344,6 +344,24 @@
                 grid-template-columns: repeat(3, minmax(0, 1fr));
             }
         }
+        /* Enlarged text can make the privacy dialog taller than the viewport;
+           the fixed centring then clips its top and hides the close control.
+           Cap the panel to the viewport and scroll the body copy instead, so
+           the heading and close button stay visible at any zoom. */
+        #privacyNoticeDialog > div {
+            max-height: 100%;
+            overflow-y: auto;
+            position: relative;
+        }
+        /* The close control is a direct child pinned to the panel's top edge,
+           so it stays visible while the heading and body copy scroll. */
+        #closePrivacyNotice {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            display: block;
+            margin-left: auto;
+        }
         #waveContainer { display: none; }
         [data-tooltip] { position: relative; }
         [data-tooltip]::after {
@@ -941,9 +959,9 @@
 
     <div id="privacyNoticeDialog" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/80 p-4" role="dialog" aria-modal="true" aria-labelledby="privacyNoticeTitle">
         <div class="glass-panel w-full max-w-xl rounded-2xl border border-neutral-700 p-6 shadow-2xl">
+            <button id="closePrivacyNotice" type="button" class="text-neutral-400 hover:text-white" aria-label="Close analytics and privacy notice"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
             <div class="flex items-start justify-between gap-6">
                 <h2 id="privacyNoticeTitle" class="font-serif text-2xl text-neutral-100">Analytics and privacy</h2>
-                <button id="closePrivacyNotice" type="button" class="text-neutral-400 hover:text-white" aria-label="Close analytics and privacy notice"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
             </div>
             <div class="mt-5 space-y-4 text-sm leading-relaxed text-neutral-300">
                 <p>If you accept analytics, this site loads Google Analytics. It helps Samantha understand aggregate visits, pages viewed, referral sources, device and browser categories, and approximate location.</p>
