@@ -3,8 +3,13 @@ const { test, expect } = require('@playwright/test');
 // The analytics privacy dialog is fixed and centred. At enlarged text its
 // content used to outgrow the viewport: flex centring clipped the top, the
 // close button rendered off-screen and nothing scrolled. The panel is now
-// capped to the viewport with a scrolling body, so the heading and close
-// control stay visible at any zoom while the copy remains readable.
+// capped to the viewport with a non-scrolling control strip above a scrolling
+// body, so the close control stays visible and the copy readable.
+// Coverage is 200% TEXT ENLARGEMENT (root font size 32px at phone widths,
+// matching the repo's other enlarged-text specs and WCAG 1.4.4 Resize Text) -
+// not browser zoom, which would also halve the CSS viewport; compounding both
+// axes (halved viewport AND doubled root) would test a state no single setting
+// produces.
 
 async function openDialog(page) {
   await page.goto('/listen/');
@@ -26,7 +31,7 @@ for (const width of [320, 412]) {
       const r = document.getElementById('closePrivacyNotice').getBoundingClientRect();
       return r.top >= -0.5 && r.bottom <= innerHeight + 0.5 && r.height > 0;
     })).toBe(true);
-    // The copy overflows at this zoom and must scroll to its end; the same
+    // The copy overflows at this text size and must scroll to its end; the same
     // emergency wrap the site applies elsewhere keeps even the longest word
     // inside the column (no horizontal clipping).
     await expect.poll(() => page.evaluate(() => {
@@ -60,7 +65,7 @@ for (const width of [320, 412]) {
         if (cr.top < -0.5 || cr.bottom > innerHeight + 0.5) out.closeVisible = false;
         if (pos === panel.scrollHeight) {
           // The end of the copy is visible below the strip: a paragraph can
-          // legitimately be taller than the window at this zoom, so assert
+          // legitimately be taller than the window at this text size, so assert
           // on its bottom edge, not the whole paragraph.
           const last = panel.querySelector('p:last-child').getBoundingClientRect();
           out.endReached = last.bottom <= pr.bottom + 0.5 && last.bottom >= strip.bottom - 0.5;
