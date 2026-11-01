@@ -381,22 +381,21 @@
         /* When enlarged text makes the banner and the lifted soundbar
            together taller than the viewport, the banner scrolls within the
            space above the bar so neither surface loses its controls. */
-        /* The banner scrolls within the space below the bar. The bar may be
-           lifted (its bottom edge is --consent-banner-offset from the
-           viewport's bottom edge), so measure from the lift, not the bar's
-           own height - otherwise the banner's top slides under the lifted bar. */
+        /* When enlarged text makes the banner and the lifted soundbar
+           together taller than the viewport, the banner scrolls within the
+           space above the bar so neither surface loses its controls. */
         #cookieConsentBanner {
-            max-height: max(0px, calc(var(--consent-banner-offset, 0px) - 1rem));
+            max-height: max(0px, calc(100vh - var(--soundbar-offset, 0px) - 1.5rem));
             overflow-y: auto;
         }
         /* While the failure notice occupies the band directly below the bar,
            keep the banner below that band too, so the notice can never cover
            the banner's copy or buttons at any scroll position. */
-        .failure-notice-below-bar #cookieConsentBanner {
+        .failure-notice-below-bar:has(#audioAvailabilityMessage:not(.hidden)) #cookieConsentBanner {
             /* Below the notice band when there is room; never below a usable
                height though - on a too-short viewport the banner simply
                scrolls over the (non-interactive) notice instead. */
-            max-height: max(3.5rem, calc(var(--consent-banner-offset, 0px) - var(--failure-notice-max-height, 0px) - 1rem));
+            max-height: max(3.5rem, calc(100vh - var(--soundbar-offset, 0px) - var(--failure-notice-max-height, 0px) - 1.5rem));
             /* Tighter padding shrinks the banner's minimum height so it can
                still sit below the notice band on short viewports. */
             padding: 0.5rem 1rem;
@@ -2125,27 +2124,22 @@
             }
             // The banner's own gap from the viewport edge scales with the
             // visitor's text size, so measure it rather than hard-coding 1rem.
-            const liftNoBand = bannerRect.height + (window.innerHeight - bannerRect.bottom) + 8;
+            const lift = bannerRect.height + (window.innerHeight - bannerRect.bottom) + 8;
             // Enlarged text can make the banner and bar together taller than
             // the viewport: never push the bar off the top edge - it stays put
             // behind the banner's top until the visitor answers.
             const barHeight = soundbarElement.getBoundingClientRect().height;
             const maxLift = Math.max(0, window.innerHeight - barHeight - 8);
+            const appliedLift = Math.min(lift, maxLift);
             const root = document.documentElement;
+            root.style.setProperty('--consent-banner-offset', `${appliedLift}px`);
             // The failure notice normally sits above the bar-and-banner
             // stack. When that stack leaves no room for it, move it to the
-            // band directly below the bar instead (see the CSS override) and
-            // lift the bar by the band's height, so bar, notice and banner
-            // each keep their own space. Only a visible notice reserves it.
+            // band directly below the bar instead (see the CSS override).
             const rem = parseFloat(getComputedStyle(root).fontSize) || 16;
-            const appliedNoBand = Math.min(liftNoBand, maxLift);
-            const bandHeight = Math.max(0, Math.min(8 * rem, appliedNoBand - 4));
-            const noticeElement = document.getElementById('audioAvailabilityMessage');
-            const noticeVisible = !!(noticeElement && !noticeElement.classList.contains('hidden'));
-            const needsBand = noticeVisible && barHeight + appliedNoBand + 8 + bandHeight >= window.innerHeight;
-            const lift = liftNoBand + (needsBand ? bandHeight + 8 : 0);
-            const appliedLift = Math.min(lift, maxLift);
-            root.style.setProperty('--consent-banner-offset', `${appliedLift}px`);
+            const bandHeight = Math.max(0, Math.min(8 * rem, appliedLift - 4));
+            const naturalBottom = barHeight + appliedLift + 8;
+            const needsBand = naturalBottom + bandHeight > window.innerHeight;
             root.classList.toggle('failure-notice-below-bar', needsBand);
             if (needsBand) {
                 // bottom = appliedLift - bandHeight puts the notice's top edge
@@ -2160,13 +2154,6 @@
         // A viewport height change resizes neither observed element, so the
         // lift cap would otherwise keep a stale value.
         window.addEventListener('resize', updateConsentBannerOffset);
-        // Showing or hiding the failure notice changes the band reservation:
-        // re-run when its class flips. Kept referenced against GC.
-        const noticeVisibilityObserver = new MutationObserver(updateConsentBannerOffset);
-        const availabilityNoticeElement = document.getElementById('audioAvailabilityMessage');
-        if (availabilityNoticeElement) {
-            noticeVisibilityObserver.observe(availabilityNoticeElement, { attributes: true, attributeFilter: ['class'] });
-        }
         updateConsentBannerOffset();
 
         let soundbarLoadingOwner = null;
