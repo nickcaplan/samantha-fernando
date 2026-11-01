@@ -26,20 +26,24 @@ for (const width of [320, 412]) {
       const r = document.getElementById('closePrivacyNotice').getBoundingClientRect();
       return r.top >= -0.5 && r.bottom <= innerHeight + 0.5 && r.height > 0;
     })).toBe(true);
-    // The copy overflows at this zoom and must scroll to its end.
+    // The copy overflows at this zoom and must scroll to its end; the same
+    // emergency wrap the site applies elsewhere keeps even the longest word
+    // inside the column (no horizontal clipping).
     await expect.poll(() => page.evaluate(() => {
-      const panel = document.querySelector('#privacyNoticeDialog > div');
-      return panel.scrollHeight > panel.clientHeight + 1;
+      const body = document.querySelector('#privacyNoticeDialog > div > div:last-child');
+      return body.scrollHeight > body.clientHeight + 1;
+    })).toBe(true);
+    await expect.poll(() => page.evaluate(() => {
+      const body = document.querySelector('#privacyNoticeDialog > div > div:last-child');
+      return body.scrollWidth <= body.clientWidth + 1;
     })).toBe(true);
     // At every scroll position - top, middle, end - the copy must stay out
     // of the pinned control strip's space entirely.
     const scrollScan = await page.evaluate(() => {
-      const panel = document.querySelector('#privacyNoticeDialog > div');
+      const panel = document.querySelector('#privacyNoticeDialog > div > div:last-child');
       const strip = document.getElementById('privacyNoticeControls').getBoundingClientRect();
       const close = document.getElementById('closePrivacyNotice').getBoundingClientRect();
       const out = { overlap: [], endReached: false, closeVisible: true };
-      const bg = getComputedStyle(document.getElementById('privacyNoticeControls')).backgroundColor;
-      if (!/rgba?\(/.test(bg) || (bg.startsWith('rgba') && Number(bg.split(',')[3]) < 1)) out.overlap.push(`strip background not opaque: ${bg}`);
       for (const pos of [0, panel.scrollHeight / 2, panel.scrollHeight]) {
         panel.scrollTop = pos;
         const pr = panel.getBoundingClientRect();

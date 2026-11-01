@@ -353,17 +353,25 @@
             overflow-y: auto;
             position: relative;
         }
-        /* The close control lives in a dedicated full-width strip pinned to
-           the panel's top edge, so scrolling copy never shares its space:
-           text clips at the strip's opaque lower edge instead. */
+        #privacyNoticeDialog > div {
+            max-height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        /* The close control sits in its own non-scrolling strip; only the
+           region below it scrolls, so copy can never share its space. */
         #privacyNoticeControls {
-            position: sticky;
-            top: 0;
-            z-index: 1;
+            flex: none;
             display: flex;
             justify-content: flex-end;
             padding-bottom: 0.5rem;
-            background: var(--color-surface);
+        }
+        #privacyNoticeDialog > div > div:last-child {
+            overflow-y: auto;
+            min-height: 0;
+            /* Same emergency wrap the site applies elsewhere: a word wider
+               than the column at extreme zoom wraps instead of clipping. */
+            overflow-wrap: anywhere;
         }
         #waveContainer { display: none; }
         [data-tooltip] { position: relative; }
@@ -965,11 +973,13 @@
             <div id="privacyNoticeControls">
                 <button id="closePrivacyNotice" type="button" class="text-neutral-400 hover:text-white" aria-label="Close analytics and privacy notice"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
             </div>
-            <h2 id="privacyNoticeTitle" class="font-serif text-2xl text-neutral-100">Analytics and privacy</h2>
+            <div>
+                <h2 id="privacyNoticeTitle" class="font-serif text-2xl text-neutral-100">Analytics and privacy</h2>
             <div class="mt-5 space-y-4 text-sm leading-relaxed text-neutral-300">
                 <p>If you accept analytics, this site loads Google Analytics. It helps Samantha understand aggregate visits, pages viewed, referral sources, device and browser categories, and approximate location.</p>
                 <p>Google Analytics may set cookies or use similar storage after you accept. The site does not load Google Analytics before you accept. Do not submit personally identifiable information through the site for analytics purposes.</p>
                 <p>You can change this choice at any time on the <span class="text-neutral-100">Privacy page</span>, linked in the footer. For questions about the website, use the contact form.</p>
+            </div>
             </div>
         </div>
     </div>
