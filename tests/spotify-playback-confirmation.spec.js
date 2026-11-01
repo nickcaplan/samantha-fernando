@@ -1293,3 +1293,27 @@ test('replaying a finished track starts from zero (real embed semantics)', async
   ]);
 });
 
+
+test('replaying a finished track from the soundbar starts from zero (real embed semantics)', async ({ page }) => {
+  await mockSpotify(page, { realistic: true, durationMs: 4000 });
+  await page.goto('/listen/');
+
+  await balconiesCard(page).click();
+  // The short mock track ends on its own: the player pauses at the end.
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback', { timeout: 15000 });
+  await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:04');
+
+  // The soundbar toggle on a finished track replays it from the beginning.
+  await page.locator('#soundbarPauseBtn').click();
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Pause playback');
+  await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:00');
+  await waitForElapsed(page, 1);
+
+  const calls = await page.evaluate(() => window.__spotifyCalls);
+  expect(calls).toEqual([
+    ['loadUri', 'spotify:track:2wNL47uCuwDpbOqCIpbSTS'],
+    ['seek', 0],
+    ['play'],
+    ['play'],
+  ]);
+});

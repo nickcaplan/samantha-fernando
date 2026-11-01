@@ -2649,6 +2649,13 @@
                 if (isSpotifyPlaying) {
                     spotifyController.pause();
                     setSpotifyPlaybackState(false, activeSpotifyTrack);
+                } else if (isPlaybackStopped) {
+                    // A finished track has nothing to resume: play() restarts
+                    // the loaded track from the beginning, which is the
+                    // replay the listener asked for.
+                    isPlaybackStopped = false;
+                    spotifyController.play();
+                    armSpotifyLoading(currentTrackId);
                 } else {
                     // A paused track continues with resume(): play() restarts
                     // the loaded track from the beginning.
