@@ -411,7 +411,7 @@
            grows text and controls together - when both no longer fit side by
            side the controls wrap to their own row below instead of crushing
            the name. Only the frame itself (width, padding) is fixed in px. */
-        #soundbar { position: fixed; bottom: 0; width: min(544px, calc(100vw - 32px)); box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 0.25rem; min-height: 96px; padding: 12px 20px; background: #6e3500; border-color: rgba(246, 191, 123, 0.35); color: #fdf3e3; transition: opacity 0.3s ease, transform 0.3s ease; }
+        #soundbar { position: fixed; bottom: var(--consent-banner-offset, 0px); width: min(544px, calc(100vw - 32px)); box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 0.25rem; min-height: 96px; padding: 12px 20px; background: #6e3500; border-color: rgba(246, 191, 123, 0.35); color: #fdf3e3; transition: opacity 0.3s ease, transform 0.3s ease; }
         #soundbarTrackInfo { position: relative; flex: 1 1 8rem; min-width: 0; display: grid; gap: 0.25rem; }
         /* Explicit rows let the loading message overlap the progress/time
            rows without disturbing the grid's auto-placement. */
@@ -428,7 +428,7 @@
            not a notice scrolled out of view in the catalogue flow. */
         #audioAvailabilityMessage:not(.hidden) {
             position: fixed;
-            bottom: max(5.5rem, calc(var(--soundbar-offset, 0px) + 0.5rem));
+            bottom: max(5.5rem, calc(var(--soundbar-offset, 0px) + var(--consent-banner-offset, 0px) + 0.5rem));
             max-height: calc(100vh - var(--soundbar-offset, 0px) - 2rem);
             overflow-y: auto;
             left: 50%;
@@ -2064,8 +2064,36 @@
             const height = soundbarElement.classList.contains('hidden') ? 0 : soundbarElement.getBoundingClientRect().height;
             document.documentElement.style.setProperty('--soundbar-offset', `${height}px`);
         };
-        new ResizeObserver(updateSoundbarOffset).observe(soundbarElement);
+        // Kept in a variable: an unreferenced observer can be garbage-collected,
+        // which silently stops the offset tracking.
+        const soundbarResizeObserver = new ResizeObserver(updateSoundbarOffset);
+        soundbarResizeObserver.observe(soundbarElement);
         updateSoundbarOffset();
+
+        // While the analytics choice is unanswered, its banner owns the bottom
+        // of the viewport: lift the soundbar above it so playback controls stay
+        // visible and reachable. Zero once the visitor has answered.
+        const consentBannerElement = document.getElementById('cookieConsentBanner');
+        const updateConsentBannerOffset = () => {
+            const bannerRect = consentBannerElement.getBoundingClientRect();
+            if (!bannerRect.height) {
+                document.documentElement.style.setProperty('--consent-banner-offset', '0px');
+                return;
+            }
+            // The banner's own gap from the viewport edge scales with the
+            // visitor's text size, so measure it rather than hard-coding 1rem.
+            const lift = bannerRect.height + (window.innerHeight - bannerRect.bottom) + 8;
+            // Enlarged text can make the banner and bar together taller than
+            // the viewport: never push the bar off the top edge - it stays put
+            // behind the banner's top until the visitor answers.
+            const barHeight = soundbarElement.getBoundingClientRect().height;
+            const maxLift = Math.max(0, window.innerHeight - barHeight - 8);
+            document.documentElement.style.setProperty('--consent-banner-offset', `${Math.min(lift, maxLift)}px`);
+        };
+        const consentBannerObserver = new ResizeObserver(updateConsentBannerOffset);
+        consentBannerObserver.observe(consentBannerElement);
+        consentBannerObserver.observe(soundbarElement);
+        updateConsentBannerOffset();
 
         let soundbarLoadingOwner = null;
         function showSoundbarLoading(owner) {
