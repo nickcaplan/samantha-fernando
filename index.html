@@ -384,6 +384,15 @@
             max-height: max(0px, calc(100vh - var(--soundbar-offset, 0px) - 1.5rem));
             overflow-y: auto;
         }
+        /* In that capped state the bar sits at the viewport top with the
+           banner scrolling beneath it: the failure notice moves to the band
+           directly below the bar - never off-screen, never over the bar's
+           controls - and floats above the banner. */
+        .consent-lift-capped #audioAvailabilityMessage:not(.hidden) {
+            bottom: max(0px, calc(100vh - var(--soundbar-offset, 0px) - 8.5rem));
+            max-height: 8rem;
+            z-index: 80;
+        }
         #waveContainer { display: none; }
         [data-tooltip] { position: relative; }
         [data-tooltip]::after {
@@ -435,17 +444,12 @@
            not a notice scrolled out of view in the catalogue flow. */
         #audioAvailabilityMessage:not(.hidden) {
             position: fixed;
-            /* When banner and bar cannot both fit, the lift is capped and the
-               bar sits at the viewport top. The notice then caps its own
-               position to the band directly below the bar - never off-screen,
-               never over the bar's controls - and floats above the banner,
-               which scrolls beneath it. */
-            bottom: min(max(5.5rem, calc(var(--soundbar-offset, 0px) + var(--consent-banner-offset, 0px) + 0.5rem)), calc(100vh - var(--soundbar-offset, 0px) - 8.5rem));
-            max-height: min(calc(100vh - var(--soundbar-offset, 0px) - 2rem), 8rem);
+            bottom: max(5.5rem, calc(var(--soundbar-offset, 0px) + var(--consent-banner-offset, 0px) + 0.5rem));
+            max-height: calc(100vh - var(--soundbar-offset, 0px) - 2rem);
             overflow-y: auto;
             left: 50%;
             transform: translateX(-50%);
-            z-index: 80;
+            z-index: 50;
             max-width: min(90vw, 32rem);
             box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
         }
@@ -2090,6 +2094,7 @@
             const bannerRect = consentBannerElement.getBoundingClientRect();
             if (!bannerRect.height) {
                 document.documentElement.style.setProperty('--consent-banner-offset', '0px');
+                document.documentElement.classList.remove('consent-lift-capped');
                 return;
             }
             // The banner's own gap from the viewport edge scales with the
@@ -2101,6 +2106,9 @@
             const barHeight = soundbarElement.getBoundingClientRect().height;
             const maxLift = Math.max(0, window.innerHeight - barHeight - 8);
             document.documentElement.style.setProperty('--consent-banner-offset', `${Math.min(lift, maxLift)}px`);
+            // Capped: the bar is at the viewport top, so the failure notice
+            // moves below it instead of above (see the CSS override).
+            document.documentElement.classList.toggle('consent-lift-capped', lift > maxLift);
         };
         const consentBannerObserver = new ResizeObserver(updateConsentBannerOffset);
         consentBannerObserver.observe(consentBannerElement);
