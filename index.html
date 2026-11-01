@@ -376,6 +376,13 @@
             /* Same emergency wrap the site applies elsewhere: a word wider
                than the column at extreme zoom wraps instead of clipping. */
             overflow-wrap: anywhere;
+
+        /* When enlarged text makes the banner and the lifted soundbar
+           together taller than the viewport, the banner scrolls within the
+           space above the bar so neither surface loses its controls. */
+        #cookieConsentBanner {
+            max-height: max(0px, calc(100vh - var(--soundbar-offset, 0px) - 1.5rem));
+            overflow-y: auto;
         }
         #waveContainer { display: none; }
         [data-tooltip] { position: relative; }
@@ -428,8 +435,11 @@
            not a notice scrolled out of view in the catalogue flow. */
         #audioAvailabilityMessage:not(.hidden) {
             position: fixed;
-            bottom: max(5.5rem, calc(var(--soundbar-offset, 0px) + var(--consent-banner-offset, 0px) + 0.5rem));
-            max-height: calc(100vh - var(--soundbar-offset, 0px) - 2rem);
+            /* The consent lift is capped near the viewport top when banner
+               and bar cannot both fit; the notice caps its own position
+               separately so a playback failure never reads off-screen. */
+            bottom: max(5.5rem, min(calc(var(--soundbar-offset, 0px) + var(--consent-banner-offset, 0px) + 0.5rem), calc(100vh - 9rem)));
+            max-height: min(calc(100vh - var(--soundbar-offset, 0px) - 2rem), 8rem);
             overflow-y: auto;
             left: 50%;
             transform: translateX(-50%);
@@ -2093,6 +2103,9 @@
         const consentBannerObserver = new ResizeObserver(updateConsentBannerOffset);
         consentBannerObserver.observe(consentBannerElement);
         consentBannerObserver.observe(soundbarElement);
+        // A viewport height change resizes neither observed element, so the
+        // lift cap would otherwise keep a stale value.
+        window.addEventListener('resize', updateConsentBannerOffset);
         updateConsentBannerOffset();
 
         let soundbarLoadingOwner = null;

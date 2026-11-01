@@ -51,12 +51,13 @@ test('soundbar returns to the viewport edge once the choice is made @mobile', as
   await expectClearOfBanner(page);
   await page.getByRole('button', { name: 'Reject', exact: true }).click();
   await expect(page.locator('#cookieConsentBanner')).toBeHidden();
-  const settled = await page.evaluate(() => {
+  // The ResizeObserver resets the offset asynchronously once the banner is
+  // gone: poll the offset and the bar position together until both settle.
+  await expect.poll(() => page.evaluate(() => {
     const s = document.getElementById('soundbar').getBoundingClientRect();
-    return { barBottom: s.bottom, viewport: innerHeight, offset: getComputedStyle(document.documentElement).getPropertyValue('--consent-banner-offset').trim() };
-  });
-  expect(settled.offset).toBe('0px');
-  expect(Math.abs(settled.barBottom - settled.viewport)).toBeLessThanOrEqual(1);
+    const offset = getComputedStyle(document.documentElement).getPropertyValue('--consent-banner-offset').trim();
+    return offset === '0px' && Math.abs(s.bottom - innerHeight) <= 1;
+  })).toBe(true);
 });
 
 test('reopening the choice from Cookie preferences lifts the soundbar again', async ({ page }) => {
