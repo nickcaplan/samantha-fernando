@@ -72,14 +72,16 @@ test('failure notice stays clear of the lifted soundbar on a short viewport @mob
   await revealSoundbar(page);
   await expectClearOfBanner(page);
   await page.evaluate(() => document.getElementById('audioAvailabilityMessage').classList.remove('hidden'));
-  const geo = await page.evaluate(() => {
+  // Whichever position the geometry picks, the notice must stay fully
+  // on-screen and never cover the bar's controls.
+  await expect.poll(() => page.evaluate(() => {
     const n = document.getElementById('audioAvailabilityMessage').getBoundingClientRect();
     const s = document.getElementById('soundbar').getBoundingClientRect();
-    return { noticeTop: n.top, noticeBottom: n.bottom, barBottom: s.bottom, vh: innerHeight };
-  });
-  expect(geo.noticeTop).toBeGreaterThanOrEqual(geo.barBottom - 0.5);
-  expect(geo.noticeTop).toBeGreaterThanOrEqual(-0.5);
-  expect(geo.noticeBottom).toBeLessThanOrEqual(geo.vh + 0.5);
+    const band = document.documentElement.classList.contains('failure-notice-below-bar');
+    const onScreen = n.top >= -0.5 && n.bottom <= innerHeight + 0.5;
+    const clear = band ? n.top >= s.bottom - 0.5 : n.bottom <= s.top + 0.5;
+    return onScreen && clear;
+  })).toBe(true);
 });
 
 test('reopening the choice from Cookie preferences lifts the soundbar again', async ({ page }) => {

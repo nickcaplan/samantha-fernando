@@ -384,13 +384,15 @@
             max-height: max(0px, calc(100vh - var(--soundbar-offset, 0px) - 1.5rem));
             overflow-y: auto;
         }
-        /* In that capped state the bar sits at the viewport top with the
-           banner scrolling beneath it: the failure notice moves to the band
-           directly below the bar - never off-screen, never over the bar's
-           controls - and floats above the banner. */
-        .consent-lift-capped #audioAvailabilityMessage:not(.hidden) {
-            bottom: max(0px, calc(100vh - var(--soundbar-offset, 0px) - 8.5rem));
-            max-height: 8rem;
+        /* When the bar and banner stack leaves no room for the failure
+           notice above them (short viewport, enlarged text), it moves to the
+           band directly below the bar, floating above the scrolling banner:
+           never off-screen, never over the bar's controls. The band's
+           geometry comes from the offset calculation, which knows the real
+           rendered heights. */
+        .failure-notice-below-bar #audioAvailabilityMessage:not(.hidden) {
+            bottom: max(0px, var(--failure-notice-bottom, 0px));
+            max-height: var(--failure-notice-max-height, 8rem);
             z-index: 80;
         }
         #waveContainer { display: none; }
@@ -2094,7 +2096,7 @@
             const bannerRect = consentBannerElement.getBoundingClientRect();
             if (!bannerRect.height) {
                 document.documentElement.style.setProperty('--consent-banner-offset', '0px');
-                document.documentElement.classList.remove('consent-lift-capped');
+                document.documentElement.classList.remove('failure-notice-below-bar');
                 return;
             }
             // The banner's own gap from the viewport edge scales with the
@@ -2105,10 +2107,23 @@
             // behind the banner's top until the visitor answers.
             const barHeight = soundbarElement.getBoundingClientRect().height;
             const maxLift = Math.max(0, window.innerHeight - barHeight - 8);
-            document.documentElement.style.setProperty('--consent-banner-offset', `${Math.min(lift, maxLift)}px`);
-            // Capped: the bar is at the viewport top, so the failure notice
-            // moves below it instead of above (see the CSS override).
-            document.documentElement.classList.toggle('consent-lift-capped', lift > maxLift);
+            const appliedLift = Math.min(lift, maxLift);
+            const root = document.documentElement;
+            root.style.setProperty('--consent-banner-offset', `${appliedLift}px`);
+            // The failure notice normally sits above the bar-and-banner
+            // stack. When that stack leaves no room for it, move it to the
+            // band directly below the bar instead (see the CSS override).
+            const rem = parseFloat(getComputedStyle(root).fontSize) || 16;
+            const bandHeight = Math.max(0, Math.min(8 * rem, appliedLift - 4));
+            const naturalBottom = barHeight + appliedLift + 8;
+            const needsBand = naturalBottom + bandHeight > window.innerHeight;
+            root.classList.toggle('failure-notice-below-bar', needsBand);
+            if (needsBand) {
+                // bottom = appliedLift - bandHeight puts the notice's top edge
+                // exactly at the bar's bottom edge: fully below it, never over.
+                root.style.setProperty('--failure-notice-max-height', `${bandHeight}px`);
+                root.style.setProperty('--failure-notice-bottom', `${Math.max(0, appliedLift - bandHeight)}px`);
+            }
         };
         const consentBannerObserver = new ResizeObserver(updateConsentBannerOffset);
         consentBannerObserver.observe(consentBannerElement);
