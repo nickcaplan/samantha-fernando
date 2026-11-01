@@ -31,6 +31,17 @@ for (const width of [320, 412]) {
       const r = document.getElementById('closePrivacyNotice').getBoundingClientRect();
       return r.top >= -0.5 && r.bottom <= innerHeight + 0.5 && r.height > 0;
     })).toBe(true);
+    // Keyboard users reach the scrollable body through the dialog's focus
+    // trap and scroll it with the arrow keys (the region is focusable).
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#privacyNoticeBody')).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect.poll(() => page.evaluate(() =>
+      document.getElementById('privacyNoticeBody').scrollTop
+    )).toBeGreaterThan(0);
+    await page.keyboard.press('Shift+Tab');
+    await expect(page.locator('#closePrivacyNotice')).toBeFocused();
+
     // The copy overflows at this text size and must scroll to its end; the same
     // emergency wrap the site applies elsewhere keeps even the longest word
     // inside the column (no horizontal clipping).
