@@ -353,18 +353,16 @@
             overflow-y: auto;
             position: relative;
         }
-        /* The close control is a direct child pinned to the panel's top edge,
-           so it stays visible while the heading and body copy scroll. */
-        #closePrivacyNotice {
+        /* The close control lives in a dedicated full-width strip pinned to
+           the panel's top edge, so scrolling copy never shares its space:
+           text clips at the strip's opaque lower edge instead. */
+        #privacyNoticeControls {
             position: sticky;
             top: 0;
             z-index: 1;
-            display: block;
-            margin-left: auto;
-            padding: 0.25rem;
-            border-radius: 0.375rem;
-            /* Opaque chip matching the panel, so scrolling copy never shows
-               through beneath the pinned control. */
+            display: flex;
+            justify-content: flex-end;
+            padding-bottom: 0.5rem;
             background: var(--color-surface);
         }
         #waveContainer { display: none; }
@@ -964,10 +962,10 @@
 
     <div id="privacyNoticeDialog" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/80 p-4" role="dialog" aria-modal="true" aria-labelledby="privacyNoticeTitle">
         <div class="glass-panel w-full max-w-xl rounded-2xl border border-neutral-700 p-6 shadow-2xl">
-            <button id="closePrivacyNotice" type="button" class="text-neutral-400 hover:text-white" aria-label="Close analytics and privacy notice"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
-            <div class="flex items-start justify-between gap-6">
-                <h2 id="privacyNoticeTitle" class="font-serif text-2xl text-neutral-100">Analytics and privacy</h2>
+            <div id="privacyNoticeControls">
+                <button id="closePrivacyNotice" type="button" class="text-neutral-400 hover:text-white" aria-label="Close analytics and privacy notice"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
             </div>
+            <h2 id="privacyNoticeTitle" class="font-serif text-2xl text-neutral-100">Analytics and privacy</h2>
             <div class="mt-5 space-y-4 text-sm leading-relaxed text-neutral-300">
                 <p>If you accept analytics, this site loads Google Analytics. It helps Samantha understand aggregate visits, pages viewed, referral sources, device and browser categories, and approximate location.</p>
                 <p>Google Analytics may set cookies or use similar storage after you accept. The site does not load Google Analytics before you accept. Do not submit personally identifiable information through the site for analytics purposes.</p>
