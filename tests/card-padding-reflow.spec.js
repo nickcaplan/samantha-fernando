@@ -54,6 +54,13 @@ for (const width of [320, 390, 1440]) for (const theme of ['light', 'dark']) {
         // combination asserts the safety property instead - no horizontal
         // overflow of card or page.
         if (width === 320 && scale === 2) {
+          // Emergency wrapping stays available for physically over-wide words
+          // ("Positive/Negative"), but the titles this fix targets must no
+          // longer split. Entry format is `${heading}: ${token}`; the token
+          // has no whitespace, so the last ': ' is an unambiguous separator.
+          const affectedTokens = ['Creative', 'Illuminations', 'TRAPPIST-', 'Milestones'];
+          const affectedSplits = split.filter(entry => affectedTokens.includes(entry.slice(entry.lastIndexOf(': ') + 2)));
+          expect(affectedSplits, `${route} at ${width}px ${theme} scale ${scale}`).toEqual([]);
           expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
           expect(await page.locator('main .glass-panel').evaluateAll(es => es.every(e => e.scrollWidth <= e.clientWidth + 1))).toBe(true);
         } else {
