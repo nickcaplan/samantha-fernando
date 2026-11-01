@@ -25,18 +25,29 @@ for (const width of [320, 390, 1440]) for (const theme of ['light', 'dark']) {
       await page.locator('main .glass-panel').first().waitFor();
       for (const scale of [1, 2]) {
         await page.evaluate(s => document.documentElement.style.fontSize = 16 * s + 'px', scale);
-        const split = await page.locator(cardHeadings).evaluateAll(es => es.flatMap(e => {
-          const out = [], walker = document.createTreeWalker(e, NodeFilter.SHOW_TEXT);
-          while (walker.nextNode()) {
-            const node = walker.currentNode;
-            for (const m of node.textContent.matchAll(/[^\s\/-]+[\/-]?/g)) {
-              const range = new Range(); range.setStart(node, m.index); range.setEnd(node, m.index + m[0].length);
-              const lines = new Set([...range.getClientRects()].filter(r => r.width && r.height).map(r => Math.round(r.top)));
-              if (lines.size > 1) out.push(`${e.textContent.trim()}: ${m[0]}`);
+        // A route with no visible matching heading must fail, not pass
+        // vacuously on an empty split list.
+        const probe = await page.locator(cardHeadings).evaluateAll(es => {
+          const out = { visible: 0, split: [] };
+          for (const e of es) {
+            let headingVisible = false;
+            const walker = document.createTreeWalker(e, NodeFilter.SHOW_TEXT);
+            while (walker.nextNode()) {
+              const node = walker.currentNode;
+              for (const m of node.textContent.matchAll(/[^\s\/-]+[\/-]?/g)) {
+                const range = new Range(); range.setStart(node, m.index); range.setEnd(node, m.index + m[0].length);
+                const rects = [...range.getClientRects()].filter(r => r.width && r.height);
+                if (rects.length) headingVisible = true;
+                const lines = new Set(rects.map(r => Math.round(r.top)));
+                if (lines.size > 1) out.split.push(`${e.textContent.trim()}: ${m[0]}`);
+              }
             }
+            if (headingVisible) out.visible++;
           }
           return out;
-        }));
+        });
+        expect(probe.visible, `${route} shows card headings at ${width}px ${theme} scale ${scale}`).toBeGreaterThan(0);
+        const split = probe.split;
         // At 320px with 200% text one long compound title word
         // ("Positive/Negative") is physically wider than any reasonable card
         // column, so the preserved emergency wrap is expected to engage; that
