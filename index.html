@@ -3102,6 +3102,42 @@
         window.addEventListener('resize', updateMobileMenuSpace);
         window.visualViewport?.addEventListener('resize', updateMobileMenuSpace);
 
+        // When the responsive mode swap (or closing the drawer) hides the
+        // focused navigation control, the browser drops focus to the document
+        // body. Move it to the equivalent control in the new mode instead: the
+        // matching desktop link, or the menu toggle when the drawer links are
+        // not visible. Ordinary tab-away leaves the blurred link visible and
+        // never steals focus back.
+        const navDesktopQuery = window.matchMedia('(min-width: 1024px)');
+        document.addEventListener('focusout', (event) => {
+            // Page navigation moves focus to the new main heading; the drawer
+            // link that triggered it then blurs. That blur must not steal the
+            // heading's focus back to a navigation control.
+            if (event.relatedTarget?.matches?.('main h1')) return;
+            const target = event.target;
+            const link = target.closest?.('.nav-btn, .mobile-nav-btn');
+            const isNavControl = link || target.id === 'mobileMenuToggle' || target.matches?.('#mobileMenu a');
+            if (!isNavControl || target.offsetParent !== null) return;
+            if (link) {
+                const key = link.id.startsWith('nav-') ? link.id.slice(4) : link.dataset.mobileNav;
+                if (key) {
+                    if (navDesktopQuery.matches) {
+                        document.getElementById(`nav-${key}`)?.focus();
+                    } else {
+                        document.getElementById('mobileMenuToggle')?.focus();
+                    }
+                    return;
+                }
+            }
+            // The menu toggle and the drawer's follow links have no desktop
+            // counterpart: land on a visible navigation control in the new mode.
+            if (navDesktopQuery.matches) {
+                document.querySelector('.nav-btn')?.focus();
+            } else {
+                document.getElementById('mobileMenuToggle')?.focus();
+            }
+        });
+
         function toggleMobileMenu() {
             updateMobileMenuSpace();
             const menu = document.getElementById('mobileMenu');
