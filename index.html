@@ -3060,6 +3060,25 @@
         window.addEventListener('resize', updateMobileMenuSpace);
         window.visualViewport?.addEventListener('resize', updateMobileMenuSpace);
 
+        // When the responsive mode swap (or closing the drawer) hides the
+        // focused navigation control, the browser drops focus to the document
+        // body. Move it to the equivalent control in the new mode instead: the
+        // matching desktop link, or the menu toggle when the drawer links are
+        // not visible. Ordinary tab-away leaves the blurred link visible and
+        // never steals focus back.
+        const navDesktopQuery = window.matchMedia('(min-width: 1024px)');
+        document.addEventListener('focusout', (event) => {
+            const link = event.target.closest?.('.nav-btn, .mobile-nav-btn');
+            if (!link || link.offsetParent !== null) return;
+            const key = link.id.startsWith('nav-') ? link.id.slice(4) : link.dataset.mobileNav;
+            if (!key) return;
+            if (navDesktopQuery.matches) {
+                document.getElementById(`nav-${key}`)?.focus();
+            } else {
+                document.getElementById('mobileMenuToggle')?.focus();
+            }
+        });
+
         function toggleMobileMenu() {
             updateMobileMenuSpace();
             const menu = document.getElementById('mobileMenu');

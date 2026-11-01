@@ -6,8 +6,9 @@ const { test, expect } = require('@playwright/test');
 // These checks pin the boundary behaviour without masking it: the rendered mode
 // must match the measured CSS width, a single key press must reach the destination,
 // and navigation must still complete after a resize across the boundary. The swap
-// hides the focused link and browsers drop focus to the document body; that focus
-// loss is tracked as unresolved work in docs/next-steps.md, not accepted here.
+// hides the focused link; focus must move to the equivalent control in the new
+// mode (the matching desktop link, or the menu toggle when the drawer links are
+// not visible), never drop to the document body.
 
 function measuredMode(page) {
   return page.evaluate(() => (document.documentElement.clientWidth >= 1024 ? 'desktop' : 'compact'));
@@ -83,16 +84,16 @@ for (const { startWidth, targetWidth, startMode, endMode } of [
     expect(await measuredMode(page)).toBe(endMode);
     await expectMode(page, endMode);
 
-    // The swap hides the previously focused link. Record where focus actually went
-    // as evidence for the tracked issue; the loss itself is not the expected outcome.
+    // The swap hides the previously focused link; focus must land on the
+    // equivalent control in the new mode.
     await expect(startLink).toBeHidden();
-    const focusAfterSwap = await page.evaluate(() => {
-      const el = document.activeElement;
-      return el ? `${el.tagName}${el.id ? '#' + el.id : ''}` : 'none';
-    });
-    test.info().annotations.push({ type: 'evidence', description: `focus after the mode swap moved to ${focusAfterSwap}` });
+    if (endMode === 'desktop') {
+      await expect(page.locator('#nav-watch')).toBeFocused();
+    } else {
+      await expect(page.locator('#mobileMenuToggle')).toBeFocused();
+    }
 
-    // Refocus the new mode's control before a single keyboard activation.
+    // A single keyboard activation from the recovered focus reaches the destination.
     await keyboardNavigateToWatch(page, endMode);
   });
 }
