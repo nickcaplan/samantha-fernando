@@ -361,6 +361,11 @@
             z-index: 1;
             display: block;
             margin-left: auto;
+            padding: 0.25rem;
+            border-radius: 0.375rem;
+            /* Opaque chip matching the panel, so scrolling copy never shows
+               through beneath the pinned control. */
+            background: var(--color-surface);
         }
         #waveContainer { display: none; }
         [data-tooltip] { position: relative; }
