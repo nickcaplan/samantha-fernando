@@ -2,18 +2,92 @@ const { test, expect } = require('@playwright/test');
 
 // A controllable Spotify IFrame API: playback_update events are fired
 // explicitly by each test so playback state stays deterministic.
-async function mockSpotify(page, { deferControllerCallback = false, deferApiReady = false } = {}) {
-  await page.addInitScript(defer => {
+async function mockSpotify(page, { deferControllerCallback = false, deferApiReady = false, realistic = false, durationMs = 30000, tickMs = 500 } = {}) {
+  await page.addInitScript(({ defer, realistic, durationMs, tickMs }) => {
     window.__spotifyCalls = [];
     window.__spotifyHandlers = {};
     window.__spotifyIFrameApi = {
       createController: (_container, _options, callback) => {
+        const state = { uri: null, positionMs: 0, paused: true, started: false, timer: null };
+        const stopTimer = () => {
+          if (state.timer) {
+            clearInterval(state.timer);
+            state.timer = null;
+          }
+        };
+        // Realistic mode mirrors the real Spotify embed, so a test cannot
+        // pass through behaviour the real player does not have: play()
+        // restarts the loaded track from zero, resume() continues from the
+        // paused position, and seek() takes seconds.
+        const fire = () => {
+          const handler = window.__spotifyHandlers.playback_update;
+          if (handler && state.uri) {
+            handler({ data: { playingURI: state.uri, isPaused: state.paused, isBuffering: false, position: state.positionMs, duration: durationMs } });
+          }
+        };
+        const startTimer = () => {
+          stopTimer();
+          state.timer = setInterval(() => {
+            if (state.paused) return;
+            state.positionMs = Math.min(state.positionMs + tickMs, durationMs);
+            if (state.positionMs >= durationMs) {
+              state.paused = true;
+              stopTimer();
+            }
+            fire();
+          }, tickMs);
+        };
         const controller = {
-          loadUri: uri => window.__spotifyCalls.push(['loadUri', uri]),
+          loadUri: uri => {
+            window.__spotifyCalls.push(['loadUri', uri]);
+            if (realistic) {
+              state.uri = uri;
+              state.positionMs = 0;
+              state.paused = true;
+              state.started = false;
+              stopTimer();
+            }
+          },
           seek: position => window.__spotifyCalls.push(['seek', position]),
-          play: () => window.__spotifyCalls.push(['play']),
-          pause: () => window.__spotifyCalls.push(['pause']),
-          destroy: () => window.__spotifyCalls.push(['destroy']),
+          play: () => {
+            window.__spotifyCalls.push(['play']);
+            if (realistic) {
+              state.positionMs = 0;
+              state.started = true;
+              state.paused = false;
+              fire();
+              startTimer();
+            }
+          },
+          resume: () => {
+            window.__spotifyCalls.push(['resume']);
+            if (realistic) {
+              if (!state.started) state.positionMs = 0;
+              state.started = true;
+              state.paused = false;
+              fire();
+              startTimer();
+            }
+          },
+          togglePlay: () => {
+            window.__spotifyCalls.push(['togglePlay']);
+            if (realistic) {
+              if (state.paused) controller.resume();
+              else controller.pause();
+            }
+          },
+          pause: () => {
+            window.__spotifyCalls.push(['pause']);
+            if (realistic) {
+              state.paused = true;
+              stopTimer();
+              fire();
+            }
+          },
+          destroy: () => {
+            window.__spotifyCalls.push(['destroy']);
+            if (realistic) stopTimer();
+          },
           addListener: (event, handler) => {
             window.__spotifyHandlers[event] = handler;
           },
@@ -35,7 +109,7 @@ async function mockSpotify(page, { deferControllerCallback = false, deferApiRead
       style.textContent = 'html { scroll-behavior: auto !important; }';
       document.head.appendChild(style);
     });
-  }, deferControllerCallback);
+  }, { defer: deferControllerCallback, realistic, durationMs, tickMs });
   await page.route('https://open.spotify.com/embed/iframe-api/v1', route =>
     route.fulfill({
       contentType: 'application/javascript',
@@ -122,7 +196,7 @@ test('mirrors a real pause and resumes from the reported position', async ({ pag
   await expect(page.locator('#soundbarProgress')).toHaveAttribute('aria-valuenow', '5234');
 
   await page.locator('#soundbarPauseBtn').click();
-  await expect.poll(() => page.evaluate(() => window.__spotifyCalls)).toContainEqual(['play']);
+  await expect.poll(() => page.evaluate(() => window.__spotifyCalls)).toContainEqual(['resume']);
   await fireSpotifyUpdate(page, { isPaused: false, isBuffering: false, position: 5234, duration: 30000 });
   await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Pause playback');
 });
@@ -307,6 +381,8 @@ test('a Spotify API that becomes ready after the failure notice cannot start pla
         loadUri: uri => window.__spotifyCalls.push(['loadUri', uri]),
         seek: position => window.__spotifyCalls.push(['seek', position]),
         play: () => window.__spotifyCalls.push(['play']),
+        resume: () => window.__spotifyCalls.push(['resume']),
+        togglePlay: () => window.__spotifyCalls.push(['togglePlay']),
         pause: () => window.__spotifyCalls.push(['pause']),
         addListener: () => {},
       }),
@@ -433,6 +509,8 @@ test('cancelling pending playback before the Spotify API loads keeps it cancelle
           loadUri: uri => window.__spotifyCalls.push(['loadUri', uri]),
           seek: position => window.__spotifyCalls.push(['seek', position]),
           play: () => window.__spotifyCalls.push(['play']),
+          resume: () => window.__spotifyCalls.push(['resume']),
+          togglePlay: () => window.__spotifyCalls.push(['togglePlay']),
           pause: () => window.__spotifyCalls.push(['pause']),
           addListener: () => {},
         });
@@ -496,7 +574,7 @@ test('resuming the same paused track continues from where it paused', async ({ p
     ['seek', 0],
     ['play'],
     ['pause'],
-    ['play'],
+    ['resume'],
   ]);
 });
 
@@ -546,6 +624,8 @@ test('a cancelled request destroys its controller and its late events cannot con
           loadUri: uri => controller.calls.push(['loadUri', uri]),
           seek: position => controller.calls.push(['seek', position]),
           play: () => controller.calls.push(['play']),
+          resume: () => controller.calls.push(['resume']),
+          togglePlay: () => controller.calls.push(['togglePlay']),
           pause: () => controller.calls.push(['pause']),
           destroy: () => { controller.destroyed = true; },
           addListener: (event, handler) => { controller.handler = handler; },
@@ -606,6 +686,8 @@ test('a stale controller callback cannot replace the live controller', async ({ 
           loadUri: uri => controller.calls.push(['loadUri', uri]),
           seek: position => controller.calls.push(['seek', position]),
           play: () => controller.calls.push(['play']),
+          resume: () => controller.calls.push(['resume']),
+          togglePlay: () => controller.calls.push(['togglePlay']),
           pause: () => controller.calls.push(['pause']),
           destroy: () => { controller.destroyed = true; },
           addListener: (event, handler) => { controller.handler = handler; },
@@ -823,6 +905,8 @@ async function mockSpotifyStallOnSecond(page) {
           loadUri: uri => window.__spotifyCalls.push(['loadUri', uri]),
           seek: position => window.__spotifyCalls.push(['seek', position]),
           play: () => window.__spotifyCalls.push(['play']),
+          resume: () => window.__spotifyCalls.push(['resume']),
+          togglePlay: () => window.__spotifyCalls.push(['togglePlay']),
           pause: () => window.__spotifyCalls.push(['pause']),
           destroy: () => window.__spotifyCalls.push(['destroy']),
           addListener: (event, handler) => { window.__spotifyHandlers[event] = handler; },
@@ -1069,3 +1153,143 @@ test('never flashes the progress rows while a Spotify request is pending', async
   await expect(page.locator('#soundbarTimes')).toBeVisible();
   await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:01');
 });
+
+// Realistic-mode tests: the mock mirrors the real Spotify embed - play()
+// restarts the loaded track from zero, resume() continues from the paused
+// position, and seek() takes seconds. These tests fail if a resume path ever
+// goes back to play().
+
+const elapsedSeconds = async page =>
+  page.locator('#soundbarElapsedTime').innerText().then(text => {
+    const [minutes, seconds] = text.split(':').map(Number);
+    return minutes * 60 + seconds;
+  });
+
+const waitForElapsed = async (page, atLeast) => {
+  await expect.poll(() => elapsedSeconds(page), { timeout: 15000 }).toBeGreaterThanOrEqual(atLeast);
+};
+
+test('resuming from the soundbar continues from the paused position (real embed semantics)', async ({ page }) => {
+  await mockSpotify(page, { realistic: true });
+  await page.goto('/listen/');
+
+  await balconiesCard(page).click();
+  await waitForElapsed(page, 2);
+
+  await page.locator('#soundbarPauseBtn').click();
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
+  const pausedAt = await elapsedSeconds(page);
+  const pausedNow = Number(await page.locator('#soundbarProgress').getAttribute('aria-valuenow'));
+
+  await page.locator('#soundbarPauseBtn').click();
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Pause playback');
+
+  // Continues from the paused position: a play() restart would read 0:00 here.
+  const resumedNow = Number(await page.locator('#soundbarProgress').getAttribute('aria-valuenow'));
+  expect(resumedNow).toBeGreaterThanOrEqual(pausedNow);
+  expect(await elapsedSeconds(page)).toBeGreaterThanOrEqual(pausedAt);
+
+  const calls = await page.evaluate(() => window.__spotifyCalls);
+  expect(calls.filter(call => call[0] === 'play')).toHaveLength(1);
+  expect(calls.filter(call => call[0] === 'resume')).toHaveLength(1);
+});
+
+test('resuming from the track card continues from the paused position (real embed semantics)', async ({ page }) => {
+  await mockSpotify(page, { realistic: true });
+  await page.goto('/listen/');
+
+  await balconiesCard(page).click();
+  await waitForElapsed(page, 2);
+
+  await page.locator('#soundbarPauseBtn').click();
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
+  const pausedNow = Number(await page.locator('#soundbarProgress').getAttribute('aria-valuenow'));
+
+  await balconiesCard(page).click();
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Pause playback');
+  const resumedNow = Number(await page.locator('#soundbarProgress').getAttribute('aria-valuenow'));
+  expect(resumedNow).toBeGreaterThanOrEqual(pausedNow);
+
+  const calls = await page.evaluate(() => window.__spotifyCalls);
+  expect(calls.filter(call => call[0] === 'play')).toHaveLength(1);
+  expect(calls.filter(call => call[0] === 'resume')).toHaveLength(1);
+});
+
+test('repeated pauses keep resuming where they stopped (real embed semantics)', async ({ page }) => {
+  await mockSpotify(page, { realistic: true });
+  await page.goto('/listen/');
+
+  await balconiesCard(page).click();
+  await waitForElapsed(page, 2);
+
+  const stops = [];
+  for (let cycle = 0; cycle < 2; cycle += 1) {
+    await page.locator('#soundbarPauseBtn').click();
+    await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
+    stops.push(await elapsedSeconds(page));
+    await page.locator('#soundbarPauseBtn').click();
+    await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Pause playback');
+    // Each resume continues from its own pause point, never from zero.
+    expect(await elapsedSeconds(page)).toBeGreaterThanOrEqual(stops[cycle]);
+    // Let the next pause land on a later displayed second.
+    await waitForElapsed(page, stops[cycle] + 1);
+  }
+  expect(stops[1]).toBeGreaterThan(stops[0]);
+
+  const calls = await page.evaluate(() => window.__spotifyCalls);
+  expect(calls.filter(call => call[0] === 'play')).toHaveLength(1);
+  expect(calls.filter(call => call[0] === 'resume')).toHaveLength(2);
+});
+
+test('selecting a different track after a pause still starts from zero (real embed semantics)', async ({ page }) => {
+  await mockSpotify(page, { realistic: true });
+  await page.goto('/listen/');
+
+  const everythingPassesCard = page.locator('#worksContainer [data-spotify-track="3YV79qjiJLOgYjjEzTsVEy"]');
+  await balconiesCard(page).click();
+  await waitForElapsed(page, 2);
+  await page.locator('#soundbarPauseBtn').click();
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
+
+  await everythingPassesCard.click();
+  await expect(page.locator('#soundbarTitle')).toHaveText('Everything Passes, Everything is Connected');
+  // A fresh track is a fresh request: reload, seek to zero, play from zero.
+  await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:00');
+  await waitForElapsed(page, 1);
+
+  const calls = await page.evaluate(() => window.__spotifyCalls);
+  expect(calls).toEqual([
+    ['loadUri', 'spotify:track:2wNL47uCuwDpbOqCIpbSTS'],
+    ['seek', 0],
+    ['play'],
+    ['pause'],
+    ['loadUri', 'spotify:track:3YV79qjiJLOgYjjEzTsVEy'],
+    ['seek', 0],
+    ['play'],
+  ]);
+});
+
+test('replaying a finished track starts from zero (real embed semantics)', async ({ page }) => {
+  await mockSpotify(page, { realistic: true, durationMs: 4000 });
+  await page.goto('/listen/');
+
+  await balconiesCard(page).click();
+  // The short mock track ends on its own: the player pauses at the end.
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback', { timeout: 15000 });
+  await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:04');
+
+  await balconiesCard(page).click();
+  await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:00');
+  await waitForElapsed(page, 1);
+
+  const calls = await page.evaluate(() => window.__spotifyCalls);
+  expect(calls).toEqual([
+    ['loadUri', 'spotify:track:2wNL47uCuwDpbOqCIpbSTS'],
+    ['seek', 0],
+    ['play'],
+    ['loadUri', 'spotify:track:2wNL47uCuwDpbOqCIpbSTS'],
+    ['seek', 0],
+    ['play'],
+  ]);
+});
+

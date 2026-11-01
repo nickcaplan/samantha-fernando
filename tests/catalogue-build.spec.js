@@ -26,7 +26,7 @@ async function serveSnapshot(page, update) {
     window.__spotifyApi = {
       createController: (_element, _options, callback) => callback({
         loadUri: uri => window.__calls.push(['spotify', uri]),
-        seek: () => {}, play: () => {}, pause: () => {},
+        seek: () => {}, play: () => {}, pause: () => {}, resume: () => {}, togglePlay: () => {},
         addListener: (event, handler) => {
           window.__spotifyHandlers[event] = handler;
         },

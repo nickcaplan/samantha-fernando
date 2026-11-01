@@ -2498,9 +2498,11 @@
                 }
                 // Pause/resume applies only while the track is still the
                 // active selection; returning to a track that another
-                // selection displaced starts it from the beginning.
+                // selection displaced starts it from the beginning. Resume
+                // uses the API's resume command: play() restarts the loaded
+                // track from the beginning instead of continuing.
                 if (wasActiveSelection && activeSpotifyTrack === trackId && !wasStopped) {
-                    spotifyController.play();
+                    spotifyController.resume();
                     armSpotifyLoading(trackId);
                     return;
                 }
@@ -2648,8 +2650,10 @@
                     spotifyController.pause();
                     setSpotifyPlaybackState(false, activeSpotifyTrack);
                 } else {
+                    // A paused track continues with resume(): play() restarts
+                    // the loaded track from the beginning.
                     isPlaybackStopped = false;
-                    spotifyController.play();
+                    spotifyController.resume();
                     armSpotifyLoading(currentTrackId);
                 }
                 return;
