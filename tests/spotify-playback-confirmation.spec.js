@@ -8,7 +8,7 @@ async function mockSpotify(page, { deferControllerCallback = false, deferApiRead
     window.__spotifyHandlers = {};
     window.__spotifyIFrameApi = {
       createController: (_container, _options, callback) => {
-        const state = { uri: null, positionMs: 0, paused: true, started: false, timer: null };
+        const state = { uri: null, positionMs: 0, paused: true, started: false, ended: false, timer: null };
         const stopTimer = () => {
           if (state.timer) {
             clearInterval(state.timer);
@@ -18,7 +18,9 @@ async function mockSpotify(page, { deferControllerCallback = false, deferApiRead
         // Realistic mode mirrors the real Spotify embed, so a test cannot
         // pass through behaviour the real player does not have: play()
         // restarts the loaded track from zero, resume() continues from the
-        // paused position, and seek() takes seconds.
+        // paused position but starts over when the track already ended, and
+        // seek() takes seconds. A track that reaches its end fires a playing
+        // report at the duration - never a paused end event.
         // Player method calls report back asynchronously on the real embed,
         // after the site has finished arming its pending state; fire method
         // events on a zero timer so the mock matches that ordering.
@@ -35,7 +37,9 @@ async function mockSpotify(page, { deferControllerCallback = false, deferApiRead
             if (state.paused) return;
             state.positionMs = Math.min(state.positionMs + tickMs, durationMs);
             if (state.positionMs >= durationMs) {
-              state.paused = true;
+              // Real end-of-track: a playing report at the duration, and no
+              // paused event ever follows.
+              state.ended = true;
               stopTimer();
             }
             fire();
@@ -49,16 +53,25 @@ async function mockSpotify(page, { deferControllerCallback = false, deferApiRead
               state.positionMs = 0;
               state.paused = true;
               state.started = false;
+              state.ended = false;
               stopTimer();
             }
           },
-          seek: position => window.__spotifyCalls.push(['seek', position]),
+          seek: position => {
+            window.__spotifyCalls.push(['seek', position]);
+            if (realistic) {
+              state.positionMs = Math.min(position * 1000, durationMs);
+              state.ended = state.positionMs >= durationMs;
+              fireSoon();
+            }
+          },
           play: () => {
             window.__spotifyCalls.push(['play']);
             if (realistic) {
               state.positionMs = 0;
               state.started = true;
               state.paused = false;
+              state.ended = false;
               fireSoon();
               startTimer();
             }
@@ -66,6 +79,11 @@ async function mockSpotify(page, { deferControllerCallback = false, deferApiRead
           resume: () => {
             window.__spotifyCalls.push(['resume']);
             if (realistic) {
+              // The real embed answers resume() at the end by starting over.
+              if (state.ended || state.positionMs >= durationMs) {
+                state.positionMs = 0;
+                state.ended = false;
+              }
               if (!state.started) state.positionMs = 0;
               state.started = true;
               state.paused = false;
@@ -793,9 +811,12 @@ test('cancelling a re-armed pending request resets the bar position to zero', as
   await expect(page.locator('#soundbarProgress')).toHaveAttribute('aria-valuenow', '5234');
 
   // Re-arm the paused track, then cancel before the player confirms: the
-  // torn-down controller's position must not linger on the bar.
+  // torn-down controller's position must not linger on the bar. The resume
+  // keeps the steady paused presentation rather than re-arming the
+  // fresh-request loading feedback.
   await balconiesCard(page).click();
-  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Cancel playback request');
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
+  await expect(page.locator('#soundbarLoading')).toBeHidden();
   await page.locator('#soundbarPauseBtn').click();
   await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
   await expect(page.locator('#soundbarProgress')).toHaveAttribute('aria-valuenow', '0');
@@ -834,9 +855,11 @@ test('a failed resume after the watchdog resets the bar position to zero', async
   await expect(page.locator('#soundbarProgress')).toHaveAttribute('aria-valuenow', '5234');
 
   // Resume, then let the watchdog fire before the player confirms: the
-  // destroyed controller's position must not linger on the bar.
+  // destroyed controller's position must not linger on the bar. The resume
+  // keeps the steady paused presentation while it waits.
   await balconiesCard(page).click();
-  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Cancel playback request');
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
+  await expect(page.locator('#soundbarLoading')).toBeHidden();
   await page.clock.runFor(16000);
   await expect(page.locator('#audioAvailabilityMessage')).toBeVisible();
   await expect(page.locator('#soundbarProgress')).toHaveAttribute('aria-valuenow', '0');
@@ -938,12 +961,14 @@ test('failure notice after a cancelled request names the new track, not the canc
   await page.evaluate(() => window.__spotifyHandlers.playback_update({ data: { isPaused: false, isBuffering: false, position: 0, duration: 30000 } }));
   await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Pause playback');
 
-  // Pause, resume (pending again), then cancel by reselecting A.
+  // Pause, resume (pending again, with the steady paused presentation),
+  // then cancel by reselecting A.
   await page.locator('#soundbarPauseBtn').click();
   await page.evaluate(() => window.__spotifyHandlers.playback_update({ data: { isPaused: true, isBuffering: false, position: 5000, duration: 30000 } }));
   await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
   await page.locator('#soundbarPauseBtn').click();
-  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Cancel playback request');
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
+  await expect(page.locator('#soundbarLoading')).toBeHidden();
   await balconies.click();
   await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
   expect(await page.evaluate(() => window.__spotifyCalls.filter(c => c[0] === 'destroy').length)).toBe(1);
@@ -1198,6 +1223,54 @@ test('resuming from the soundbar continues from the paused position (real embed 
   expect(calls.filter(call => call[0] === 'resume')).toHaveLength(1);
 });
 
+test('resuming from the soundbar keeps the soundbar steady with no loading flash', async ({ page }) => {
+  await mockSpotify(page);
+  await page.goto('/listen/');
+
+  await balconiesCard(page).click();
+  await fireSpotifyUpdate(page, { isPaused: false, isBuffering: false, position: 5000, duration: 30000 });
+  await page.locator('#soundbarPauseBtn').click();
+  await fireSpotifyUpdate(page, { isPaused: true, isBuffering: false, position: 5234, duration: 30000 });
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
+
+  // The track is already loaded, so resuming must not re-arm the
+  // fresh-request presentation: no loading message, no cancel label, no
+  // icon churn - the bar keeps showing the paused position until the player
+  // confirms.
+  await page.locator('#soundbarPauseBtn').click();
+  await expect(page.locator('#soundbar')).not.toHaveClass(/loading/);
+  await expect(page.locator('#soundbarLoading')).toBeHidden();
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
+  await expect(page.locator('#waveContainer')).toHaveClass(/paused/);
+  await expect(page.locator('#soundbarProgress')).toHaveAttribute('aria-valuenow', '5234');
+  await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:05');
+
+  await fireSpotifyUpdate(page, { isPaused: false, isBuffering: false, position: 5500, duration: 30000 });
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Pause playback');
+  await expect(page.locator('#soundbarProgress')).toHaveAttribute('aria-valuenow', '5500');
+});
+
+test('resuming from the track card keeps the soundbar steady with no loading flash', async ({ page }) => {
+  await mockSpotify(page);
+  await page.goto('/listen/');
+
+  await balconiesCard(page).click();
+  await fireSpotifyUpdate(page, { isPaused: false, isBuffering: false, position: 5000, duration: 30000 });
+  await page.locator('#soundbarPauseBtn').click();
+  await fireSpotifyUpdate(page, { isPaused: true, isBuffering: false, position: 5234, duration: 30000 });
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
+
+  await balconiesCard(page).click();
+  await expect(page.locator('#soundbar')).not.toHaveClass(/loading/);
+  await expect(page.locator('#soundbarLoading')).toBeHidden();
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
+  await expect(page.locator('#waveContainer')).toHaveClass(/paused/);
+  await expect(page.locator('#soundbarProgress')).toHaveAttribute('aria-valuenow', '5234');
+
+  await fireSpotifyUpdate(page, { isPaused: false, isBuffering: false, position: 5500, duration: 30000 });
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Pause playback');
+});
+
 test('resuming from the track card continues from the paused position (real embed semantics)', async ({ page }) => {
   await mockSpotify(page, { realistic: true });
   await page.goto('/listen/');
@@ -1278,7 +1351,8 @@ test('replaying a finished track starts from zero (real embed semantics)', async
   await page.goto('/listen/');
 
   await balconiesCard(page).click();
-  // The short mock track ends on its own: the player pauses at the end.
+  // The short mock track ends on its own: a playing report at the duration
+  // marks it finished, so the bar settles as stopped.
   await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback', { timeout: 15000 });
   await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:04');
 
@@ -1303,7 +1377,8 @@ test('replaying a finished track from the soundbar starts from zero (real embed 
   await page.goto('/listen/');
 
   await balconiesCard(page).click();
-  // The short mock track ends on its own: the player pauses at the end.
+  // The short mock track ends on its own: a playing report at the duration
+  // marks it finished, so the bar settles as stopped.
   await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback', { timeout: 15000 });
   await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:04');
 

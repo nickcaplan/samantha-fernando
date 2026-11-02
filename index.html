@@ -2304,6 +2304,20 @@
             hideSoundbarLoading('spotify');
         }
 
+        // A resume request is pending without the fresh-load presentation:
+        // the track is already loaded, so the soundbar keeps showing the
+        // paused position until the player's confirmation arrives - no
+        // loading message, no cancel label, no icon churn. The pending flag
+        // lets the update handler accept the confirmation, and the watchdog
+        // still surfaces a request that never starts.
+        function awaitSpotifyResumeConfirmation() {
+            spotifyPlaybackPending = true;
+            window.clearTimeout(spotifyPlaybackWatchdog);
+            spotifyPlaybackWatchdog = window.setTimeout(() => {
+                if (spotifyPlaybackPending) showSpotifyUnavailable();
+            }, SPOTIFY_PLAYBACK_TIMEOUT_MS);
+        }
+
         function armSpotifyLoading(trackId) {
             // A re-entered request (the API was still loading) keeps the
             // pending clock it already had rather than starting over. It also
@@ -2424,6 +2438,18 @@
                 clearSpotifyLoading();
                 if (typeof data.position === 'number') spotifyElapsedMs = data.position;
                 if (typeof data.duration === 'number' && data.duration > 0) trackDurationMs = data.duration;
+                // The real embed ends a track with a playing report at the
+                // duration instead of a paused end event: that report IS the
+                // finish, so the bar settles as stopped and the next request
+                // replays from the beginning. Mid-track reports always read
+                // below the duration, so a resume confirmation near the end
+                // is not mistaken for the finish.
+                if (trackDurationMs && spotifyElapsedMs >= trackDurationMs) {
+                    spotifyElapsedMs = trackDurationMs;
+                    isPlaybackStopped = true;
+                    setSpotifyPlaybackState(false, activeSpotifyTrack || currentTrackId);
+                    return;
+                }
                 setSpotifyPlaybackState(true, activeSpotifyTrack || currentTrackId);
                 return;
             }
@@ -2512,8 +2538,8 @@
                 // uses the API's resume command: play() restarts the loaded
                 // track from the beginning instead of continuing.
                 if (wasActiveSelection && activeSpotifyTrack === trackId && !wasStopped) {
+                    awaitSpotifyResumeConfirmation();
                     spotifyController.resume();
-                    armSpotifyLoading(trackId);
                     return;
                 }
                 spotifyElapsedMs = 0;
@@ -2672,10 +2698,12 @@
                     armSpotifyLoading(currentTrackId);
                 } else {
                     // A paused track continues with resume(): play() restarts
-                    // the loaded track from the beginning.
+                    // the loaded track from the beginning. The track is
+                    // already loaded, so the bar stays steady while the
+                    // confirmation is awaited.
                     isPlaybackStopped = false;
+                    awaitSpotifyResumeConfirmation();
                     spotifyController.resume();
-                    armSpotifyLoading(currentTrackId);
                 }
                 return;
             }
