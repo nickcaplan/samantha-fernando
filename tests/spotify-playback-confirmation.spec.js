@@ -247,7 +247,7 @@ test('treats a real pause at the end as finished and replays from the start', as
   await fireSpotifyUpdate(page, { isPaused: false, isBuffering: false, position: 29500, duration: 30000 });
   await fireSpotifyUpdate(page, { isPaused: true, isBuffering: false, position: 30000, duration: 30000 });
 
-  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Replay track');
   await expect(page.locator('#soundbarProgress')).toHaveAttribute('aria-valuenow', '30000');
   await expect(page.locator('#soundbarProgress')).toHaveAttribute('aria-valuetext', '0:30 of 0:30');
 
@@ -1353,7 +1353,7 @@ test('replaying a finished track starts from zero (real embed semantics)', async
   await balconiesCard(page).click();
   // The short mock track ends on its own: a playing report at the duration
   // marks it finished, so the bar settles as stopped.
-  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback', { timeout: 15000 });
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Replay track', { timeout: 15000 });
   await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:04');
 
   await balconiesCard(page).click();
@@ -1379,7 +1379,7 @@ test('replaying a finished track from the soundbar starts from zero (real embed 
   await balconiesCard(page).click();
   // The short mock track ends on its own: a playing report at the duration
   // marks it finished, so the bar settles as stopped.
-  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback', { timeout: 15000 });
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Replay track', { timeout: 15000 });
   await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:04');
 
   // The soundbar toggle on a finished track replays it from the beginning.

@@ -2603,8 +2603,11 @@
             updateSoundbarProgress(spotifyElapsedMs);
             document.getElementById('soundStatusIcon').className = `fa-solid fa-${playing ? 'pause' : 'play'} text-sm`;
             document.getElementById('soundbarPauseIcon').className = `fa-solid fa-${playing ? 'pause' : 'play'} text-xs`;
-            document.getElementById('soundbarPauseBtn').setAttribute('aria-label', playing ? 'Pause playback' : 'Resume playback');
-            document.getElementById('soundbarPauseBtn').title = playing ? 'Pause playback' : 'Resume playback';
+            // A finished track replays from zero on the next request, so
+            // name that action honestly: only a mid-track pause resumes.
+            const spotifyToggleLabel = playing ? 'Pause playback' : (isPlaybackStopped ? 'Replay track' : 'Resume playback');
+            document.getElementById('soundbarPauseBtn').setAttribute('aria-label', spotifyToggleLabel);
+            document.getElementById('soundbarPauseBtn').title = spotifyToggleLabel;
             setSoundbarLabel(currentTrackName);
             document.getElementById('soundbar').classList.remove('hidden');
             document.getElementById('waveContainer').classList.toggle('paused', !playing);
@@ -2880,8 +2883,9 @@
             document.getElementById('waveContainer').classList.add('paused');
             document.getElementById('soundStatusIcon').className = 'fa-solid fa-play text-sm';
             document.getElementById('soundbarPauseIcon').className = 'fa-solid fa-play text-xs';
-            document.getElementById('soundbarPauseBtn').setAttribute('aria-label', 'Resume playback');
-            document.getElementById('soundbarPauseBtn').title = 'Resume playback';
+            const pausedToggleLabel = isPlaybackStopped ? 'Replay track' : 'Resume playback';
+            document.getElementById('soundbarPauseBtn').setAttribute('aria-label', pausedToggleLabel);
+            document.getElementById('soundbarPauseBtn').title = pausedToggleLabel;
             document.getElementById('soundbar').classList.remove('hidden');
         }
 
