@@ -801,7 +801,7 @@ test('a failure after the watchdog tears down the controller and a late report c
     .toBe(2);
 });
 
-test('cancelling a re-armed pending request resets the bar position to zero', async ({ page }) => {
+test('a repeated soundbar click during a pending resume keeps the bar position', async ({ page }) => {
   await mockSpotify(page);
   await page.goto('/listen/');
 
@@ -810,17 +810,24 @@ test('cancelling a re-armed pending request resets the bar position to zero', as
   await fireSpotifyUpdate(page, { isPaused: true, isBuffering: false, position: 5234, duration: 30000 });
   await expect(page.locator('#soundbarProgress')).toHaveAttribute('aria-valuenow', '5234');
 
-  // Re-arm the paused track, then cancel before the player confirms: the
-  // torn-down controller's position must not linger on the bar. The resume
-  // keeps the steady paused presentation rather than re-arming the
-  // fresh-request loading feedback.
+  // Resume, then click again before the player confirms: the button still
+  // says "Resume playback", so the in-flight resume is left alone - the
+  // controller and the paused position survive the repeated click, and no
+  // second resume is sent.
   await balconiesCard(page).click();
   await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
   await expect(page.locator('#soundbarLoading')).toBeHidden();
   await page.locator('#soundbarPauseBtn').click();
   await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
-  await expect(page.locator('#soundbarProgress')).toHaveAttribute('aria-valuenow', '0');
-  await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:00');
+  await expect(page.locator('#soundbarProgress')).toHaveAttribute('aria-valuenow', '5234');
+  let calls = await page.evaluate(() => window.__spotifyCalls);
+  expect(calls.filter(call => call[0] === 'resume')).toHaveLength(1);
+  expect(calls.filter(call => call[0] === 'destroy')).toHaveLength(0);
+
+  // The confirmation then completes the resume at the kept position.
+  await fireSpotifyUpdate(page, { isPaused: false, isBuffering: false, position: 5300, duration: 30000 });
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Pause playback');
+  await expect(page.locator('#soundbarProgress')).toHaveAttribute('aria-valuenow', '5300');
 });
 
 test('stopping playback ends the Spotify controller and its events', async ({ page }) => {
@@ -955,22 +962,12 @@ test('failure notice after a cancelled request names the new track, not the canc
   const balconies = page.locator('#worksContainer [data-spotify-track="2wNL47uCuwDpbOqCIpbSTS"]');
   const everythingPasses = page.locator('#worksContainer [data-spotify-track="3YV79qjiJLOgYjjEzTsVEy"]');
 
-  // A confirms.
+  // Request A, then cancel its pending fresh load by reselecting it: a
+  // request that has not started yet is still cancellable.
   await balconies.click();
-  await expect.poll(() => page.evaluate(() => Boolean(window.__spotifyHandlers.playback_update))).toBe(true);
-  await page.evaluate(() => window.__spotifyHandlers.playback_update({ data: { isPaused: false, isBuffering: false, position: 0, duration: 30000 } }));
-  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Pause playback');
-
-  // Pause, resume (pending again, with the steady paused presentation),
-  // then cancel by reselecting A.
-  await page.locator('#soundbarPauseBtn').click();
-  await page.evaluate(() => window.__spotifyHandlers.playback_update({ data: { isPaused: true, isBuffering: false, position: 5000, duration: 30000 } }));
-  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
-  await page.locator('#soundbarPauseBtn').click();
-  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
-  await expect(page.locator('#soundbarLoading')).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__spotifyCalls.some(c => c[0] === 'loadUri'))).toBe(true);
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Cancel playback request');
   await balconies.click();
-  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Resume playback');
   expect(await page.evaluate(() => window.__spotifyCalls.filter(c => c[0] === 'destroy').length)).toBe(1);
 
   // Select B; its controller callback stalls. The watchdog fires.
@@ -1400,6 +1397,52 @@ test('replaying a finished track from the soundbar starts from zero (real embed 
     ['seek', 0],
     ['play'],
   ]);
+});
+
+test('a visitor pause that lands exactly at the end still settles as finished', async ({ page }) => {
+  await mockSpotify(page);
+  await page.goto('/listen/');
+
+  await balconiesCard(page).click();
+  await fireSpotifyUpdate(page, { isPaused: false, isBuffering: false, position: 29500, duration: 30000 });
+  // The visitor asks to pause, but the track had already reached its end
+  // before the player processed it: the paused report reads the duration,
+  // and a report at the duration is the finish no matter whose pause it was.
+  await page.locator('#soundbarPauseBtn').click();
+  await fireSpotifyUpdate(page, { isPaused: true, isBuffering: false, position: 30000, duration: 30000 });
+
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Replay track');
+  await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:30');
+
+  // The next request replays from the beginning instead of "resuming" the end.
+  await page.locator('#soundbarPauseBtn').click();
+  const calls = await page.evaluate(() => window.__spotifyCalls);
+  expect(calls.filter(call => call[0] === 'resume')).toHaveLength(0);
+  expect(calls.filter(call => call[0] === 'loadUri')).toHaveLength(2);
+  expect(calls.filter(call => call[0] === 'play')).toHaveLength(2);
+});
+
+test('reselecting the track card during a pending resume keeps the resume in flight', async ({ page }) => {
+  await mockSpotify(page);
+  await page.goto('/listen/');
+
+  await balconiesCard(page).click();
+  await fireSpotifyUpdate(page, { isPaused: false, isBuffering: false, position: 5000, duration: 30000 });
+  await balconiesCard(page).click();
+  await fireSpotifyUpdate(page, { isPaused: true, isBuffering: false, position: 7000, duration: 30000 });
+
+  // Reselect resumes, and a further reselection while that resume is pending
+  // is already asking for what is in flight: no cancel, no reload.
+  await balconiesCard(page).click();
+  await balconiesCard(page).click();
+
+  await fireSpotifyUpdate(page, { isPaused: false, isBuffering: false, position: 7200, duration: 30000 });
+  await expect(page.locator('#soundbarPauseBtn')).toHaveAttribute('aria-label', 'Pause playback');
+  await expect(page.locator('#soundbarElapsedTime')).toHaveText('0:07');
+  const calls = await page.evaluate(() => window.__spotifyCalls);
+  expect(calls.filter(call => call[0] === 'resume')).toHaveLength(1);
+  expect(calls.filter(call => call[0] === 'destroy')).toHaveLength(0);
+  expect(calls.filter(call => call[0] === 'loadUri')).toHaveLength(1);
 });
 
 test('pausing inside the final moments still resumes instead of restarting (real embed semantics)', async ({ page }) => {

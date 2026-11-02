@@ -2006,6 +2006,10 @@
         // positions, and a request that never starts surfaces the
         // unavailable message instead of pretending to play.
         let spotifyPlaybackPending = false;
+        // A pending request that is a resume, not a fresh load: the bar kept
+        // its paused presentation and "Resume playback" label, so a repeated
+        // click must leave the in-flight resume (and its position) alone.
+        let spotifyResumePending = false;
         let armedSpotifyTrackId = null;
         let spotifyPlaybackWatchdog = null;
         const SPOTIFY_PLAYBACK_TIMEOUT_MS = 15000;
@@ -2298,6 +2302,7 @@
 
         function clearSpotifyLoading() {
             spotifyPlaybackPending = false;
+            spotifyResumePending = false;
             armedSpotifyTrackId = null;
             window.clearTimeout(spotifyPlaybackWatchdog);
             spotifyPlaybackWatchdog = null;
@@ -2312,6 +2317,7 @@
         // still surfaces a request that never starts.
         function awaitSpotifyResumeConfirmation() {
             spotifyPlaybackPending = true;
+            spotifyResumePending = true;
             window.clearTimeout(spotifyPlaybackWatchdog);
             spotifyPlaybackWatchdog = window.setTimeout(() => {
                 if (spotifyPlaybackPending) showSpotifyUnavailable();
@@ -2465,7 +2471,13 @@
                 // Only a pause the player raised itself can be the track
                 // ending: a visitor pausing inside the final moments still
                 // holds a paused track to resume, not a finished one.
-                if (!spotifyPauseRequested && trackDurationMs && spotifyElapsedMs >= trackDurationMs - 250) {
+                // A report at the duration is the finish no matter whose
+                // pause crossed it: the track is over, so the bar settles as
+                // stopped and the next request replays from the beginning.
+                // Only the near-end window belongs to the player's own
+                // pauses - a visitor pausing inside the final moments still
+                // has a track to resume.
+                if (trackDurationMs && (spotifyElapsedMs >= trackDurationMs || (!spotifyPauseRequested && spotifyElapsedMs >= trackDurationMs - 250))) {
                     spotifyElapsedMs = trackDurationMs;
                     isPlaybackStopped = true;
                 }
@@ -2522,8 +2534,10 @@
 
             if (spotifyController) {
                 if (activeSpotifyTrack === trackId && spotifyPlaybackPending) {
-                    // Cancel a playback request that has not started yet.
-                    cancelSpotifyPending();
+                    // Cancel a fresh load that has not started yet; a pending
+                    // resume for this track is already doing what the
+                    // reselection asks, so it is left to confirm.
+                    if (!spotifyResumePending) cancelSpotifyPending();
                     return;
                 }
                 if (wasActiveSelection && activeSpotifyTrack === trackId && isSpotifyPlaying) {
@@ -2668,8 +2682,13 @@
             }
             if (activeAudioProvider === 'spotify') {
                 if (spotifyPlaybackPending) {
-                    // Cancel a playback request that has not started yet.
-                    cancelSpotifyPending();
+                    // A fresh load is still cancellable (the button says
+                    // "Cancel playback request"); a resume already in flight
+                    // is not - the button kept saying "Resume playback" and
+                    // the confirmation lands in a moment, so a repeated click
+                    // changes nothing rather than destroying the controller
+                    // and the paused position with it.
+                    if (!spotifyResumePending) cancelSpotifyPending();
                     return;
                 }
                 if (!spotifyController) {
