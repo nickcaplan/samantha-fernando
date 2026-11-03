@@ -48,7 +48,7 @@ Record only decisions that constrain future work. Implementation history and com
 - Render compact Works and Listen cards. Render Watch as thumbnail-led YouTube cards that open the in-page modal.
 - Show only the year in Watch metadata. Do not repeat the implied `Film` label.
 - Use `Preview` for Spotify and `Listen` for SoundCloud actions. Show a related-work category and duration when known.
-- Keep audio playback and the soundbar active during in-page navigation. SoundCloud players initialise on playback intent and queue the request until each player is ready.
+- Keep audio playback and the soundbar active during in-page navigation. SoundCloud players initialise on playback intent and queue the request until each player is ready. While the analytics choice is unanswered, lift the soundbar above its banner; on short viewports keep the banner scrollable and its consent buttons reachable. Playback-failure notices must not cover the soundbar controls, and the privacy dialog remains above both surfaces.
 - Use the custom playback rows rather than provider-native embeds. Native embeds add uncontrollable UI and inconsistent mobile sizing.
 - Use a shared media-action width on desktop; stack multiple actions there and use equal-width paired actions on mobile, wrapping when more than two actions are present. Left-align single mobile media actions.
 - Use a neutral treatment for availability and missing-metadata notices unless an actual error occurred.
@@ -58,7 +58,7 @@ Record only decisions that constrain future work. Implementation history and com
 
 - Use the real page in a `430px` iframe for desktop mobile preview. Do not create preview-only responsive CSS.
 - Keep compact mobile layout rules in the page's narrow-screen media queries, including the 3.5rem header, icon-only narrow-phone sound control, persistent top-right menu close control and 13rem hero portrait.
-- Keep the navigation drawer available below 1024px; show the full navigation from 1024px. Keep phone-only content styling below 768px. Let header/footer controls wrap and content grids reflow with enlarged text rather than clipping horizontal page overflow.
+- Keep the navigation drawer available below 1024px; show the full navigation from 1024px. When the responsive mode swap or closing the drawer hides the focused navigation control, move focus to the equivalent control in the new mode (the matching desktop link, or the menu toggle when the drawer links are not visible) rather than dropping it to the document body. Keep phone-only content styling below 768px. Let header/footer controls wrap and content grids reflow with enlarged text rather than clipping horizontal page overflow.
 - Preload `assets/sam-1-1200.webp` for the homepage hero. Load the smaller `assets/sam-6-800.webp` contact portrait eagerly at low priority.
 - Load the visible Writing portrait (`assets/sam-3.webp`) eagerly at high priority; keep below-the-fold catalogue and video thumbnails lazy-loaded.
 

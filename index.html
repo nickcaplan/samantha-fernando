@@ -377,6 +377,44 @@
                than the column at extreme zoom wraps instead of clipping. */
             overflow-wrap: anywhere;
         }
+
+        /* When enlarged text makes the banner and the lifted soundbar
+           together taller than the viewport, the banner scrolls within the
+           space above the bar so neither surface loses its controls. */
+        #cookieConsentBanner {
+            max-height: max(0px, calc(100vh - var(--soundbar-offset, 0px) - 1.5rem));
+            overflow-y: auto;
+        }
+        /* While the failure notice occupies the band directly below the bar,
+           keep the banner below that band too, so the notice can never cover
+           the banner's copy or buttons at any scroll position. */
+        .failure-notice-below-bar:has(#audioAvailabilityMessage:not(.hidden)) #cookieConsentBanner {
+            /* Below the notice band when there is room; never below a usable
+               height though - on a too-short viewport the banner simply
+               scrolls over the (non-interactive) notice instead. */
+            max-height: max(3.5rem, calc(100vh - var(--soundbar-offset, 0px) - var(--failure-notice-max-height, 0px) - 1.5rem));
+            /* Tighter padding shrinks the banner's minimum height so it can
+               still sit below the notice band on short viewports. */
+            padding: 0.5rem 1rem;
+            /* On a viewport too short for bar, notice and banner together,
+               the banner's consent buttons stay above the (non-interactive)
+               notice: answering analytics must always be reachable. */
+            z-index: 85;
+        }
+        /* When the bar and banner stack leaves no room for the failure
+           notice above them (short viewport, enlarged text), it moves to the
+           band directly below the bar, floating above the scrolling banner:
+           never off-screen, never over the bar's controls. The band's
+           geometry comes from the offset calculation, which knows the real
+           rendered heights. */
+        /* The privacy modal must stay topmost: band mode puts the failure
+           notice at z-index 80, above the dialog's utility z-index 70. */
+        #privacyNoticeDialog { z-index: 95; }
+        .failure-notice-below-bar #audioAvailabilityMessage:not(.hidden) {
+            bottom: max(0px, var(--failure-notice-bottom, 0px));
+            max-height: var(--failure-notice-max-height, 8rem);
+            z-index: 80;
+        }
         #waveContainer { display: none; }
         [data-tooltip] { position: relative; }
         [data-tooltip]::after {
@@ -411,7 +449,7 @@
            grows text and controls together - when both no longer fit side by
            side the controls wrap to their own row below instead of crushing
            the name. Only the frame itself (width, padding) is fixed in px. */
-        #soundbar { position: fixed; bottom: 0; width: min(544px, calc(100vw - 32px)); box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 0.25rem; min-height: 96px; padding: 12px 20px; background: #6e3500; border-color: rgba(246, 191, 123, 0.35); color: #fdf3e3; transition: opacity 0.3s ease, transform 0.3s ease; }
+        #soundbar { position: fixed; bottom: var(--consent-banner-offset, 0px); width: min(544px, calc(100vw - 32px)); box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 0.25rem; min-height: 96px; padding: 12px 20px; background: #6e3500; border-color: rgba(246, 191, 123, 0.35); color: #fdf3e3; transition: opacity 0.3s ease, transform 0.3s ease; }
         #soundbarTrackInfo { position: relative; flex: 1 1 8rem; min-width: 0; display: grid; gap: 0.25rem; }
         /* Explicit rows let the loading message overlap the progress/time
            rows without disturbing the grid's auto-placement. */
@@ -428,7 +466,7 @@
            not a notice scrolled out of view in the catalogue flow. */
         #audioAvailabilityMessage:not(.hidden) {
             position: fixed;
-            bottom: max(5.5rem, calc(var(--soundbar-offset, 0px) + 0.5rem));
+            bottom: max(5.5rem, calc(var(--soundbar-offset, 0px) + var(--consent-banner-offset, 0px) + 0.5rem));
             max-height: calc(100vh - var(--soundbar-offset, 0px) - 2rem);
             overflow-y: auto;
             left: 50%;
@@ -901,6 +939,22 @@
             .performances-groups h2 { font-family: Newsreader, Georgia, serif; font-size: 1.25rem; line-height: 1.2; }
             .performance-entry { padding-inline: min(1.5rem, 5vw); }
             .performance-entry h3 { font-size: 1.375rem; }
+        }
+        /* Keep enlarged phone text room to wrap at word boundaries: the main
+           content gutter is capped by viewport width too, so 200% text keeps
+           the same share of the screen as at 100%. Values match the existing
+           px-4 / sm:px-6 at normal text size. */
+        @media (max-width: 639px) { main.flex-grow { padding-inline: min(1rem, 5vw); } }
+        @media (min-width: 640px) and (max-width: 767px) { main.flex-grow { padding-inline: min(1.5rem, 5vw); } }
+        /* Keep enlarged phone text room to wrap at word boundaries: card side
+           padding is capped by viewport width, as with performance cards. */
+        @media (max-width: 767px) {
+            #featured-projects article,
+            #tab-writing > article,
+            #tab-bio aside .glass-panel { padding-inline: min(1.5rem, 5vw); }
+            .works-catalogue > .glass-panel { padding-inline: min(1.25rem, 5vw); }
+            .works-catalogue > article.glass-panel,
+            #tab-writing section article.glass-panel { padding-inline: min(1rem, 5vw); }
         }
         @media (max-width: 767px) { .performance-list, .performance-tour-stops { grid-template-columns: 1fr; } .performance-tour { grid-column: auto; } .performance-entry > .performance-link { margin-top: 1rem; padding-top: 0; } }
     </style>
@@ -2072,8 +2126,56 @@
             const height = soundbarElement.classList.contains('hidden') ? 0 : soundbarElement.getBoundingClientRect().height;
             document.documentElement.style.setProperty('--soundbar-offset', `${height}px`);
         };
-        new ResizeObserver(updateSoundbarOffset).observe(soundbarElement);
+        // Kept in a variable: an unreferenced observer can be garbage-collected,
+        // which silently stops the offset tracking.
+        const soundbarResizeObserver = new ResizeObserver(updateSoundbarOffset);
+        soundbarResizeObserver.observe(soundbarElement);
         updateSoundbarOffset();
+
+        // While the analytics choice is unanswered, its banner owns the bottom
+        // of the viewport: lift the soundbar above it so playback controls stay
+        // visible and reachable. Zero once the visitor has answered.
+        const consentBannerElement = document.getElementById('cookieConsentBanner');
+        const updateConsentBannerOffset = () => {
+            const bannerRect = consentBannerElement.getBoundingClientRect();
+            if (!bannerRect.height) {
+                document.documentElement.style.setProperty('--consent-banner-offset', '0px');
+                document.documentElement.classList.remove('failure-notice-below-bar');
+                return;
+            }
+            // The banner's own gap from the viewport edge scales with the
+            // visitor's text size, so measure it rather than hard-coding 1rem.
+            const lift = bannerRect.height + (window.innerHeight - bannerRect.bottom) + 8;
+            // Enlarged text can make the banner and bar together taller than
+            // the viewport: never push the bar off the top edge - it stays put
+            // behind the banner's top until the visitor answers.
+            const barHeight = soundbarElement.getBoundingClientRect().height;
+            const maxLift = Math.max(0, window.innerHeight - barHeight - 8);
+            const appliedLift = Math.min(lift, maxLift);
+            const root = document.documentElement;
+            root.style.setProperty('--consent-banner-offset', `${appliedLift}px`);
+            // The failure notice normally sits above the bar-and-banner
+            // stack. When that stack leaves no room for it, move it to the
+            // band directly below the bar instead (see the CSS override).
+            const rem = parseFloat(getComputedStyle(root).fontSize) || 16;
+            const bandHeight = Math.max(0, Math.min(8 * rem, appliedLift - 4));
+            const naturalBottom = barHeight + appliedLift + 8;
+            const needsBand = naturalBottom + bandHeight > window.innerHeight;
+            root.classList.toggle('failure-notice-below-bar', needsBand);
+            if (needsBand) {
+                // bottom = appliedLift - bandHeight puts the notice's top edge
+                // exactly at the bar's bottom edge: fully below it, never over.
+                root.style.setProperty('--failure-notice-max-height', `${bandHeight}px`);
+                root.style.setProperty('--failure-notice-bottom', `${Math.max(0, appliedLift - bandHeight)}px`);
+            }
+        };
+        const consentBannerObserver = new ResizeObserver(updateConsentBannerOffset);
+        consentBannerObserver.observe(consentBannerElement);
+        consentBannerObserver.observe(soundbarElement);
+        // A viewport height change resizes neither observed element, so the
+        // lift cap would otherwise keep a stale value.
+        window.addEventListener('resize', updateConsentBannerOffset);
+        updateConsentBannerOffset();
 
         let soundbarLoadingOwner = null;
         function showSoundbarLoading(owner) {
@@ -3177,6 +3279,42 @@
         new ResizeObserver(updateMobileMenuSpace).observe(document.querySelector('header'));
         window.addEventListener('resize', updateMobileMenuSpace);
         window.visualViewport?.addEventListener('resize', updateMobileMenuSpace);
+
+        // When the responsive mode swap (or closing the drawer) hides the
+        // focused navigation control, the browser drops focus to the document
+        // body. Move it to the equivalent control in the new mode instead: the
+        // matching desktop link, or the menu toggle when the drawer links are
+        // not visible. Ordinary tab-away leaves the blurred link visible and
+        // never steals focus back.
+        const navDesktopQuery = window.matchMedia('(min-width: 1024px)');
+        document.addEventListener('focusout', (event) => {
+            // Page navigation moves focus to the new main heading; the drawer
+            // link that triggered it then blurs. That blur must not steal the
+            // heading's focus back to a navigation control.
+            if (event.relatedTarget?.matches?.('main h1')) return;
+            const target = event.target;
+            const link = target.closest?.('.nav-btn, .mobile-nav-btn');
+            const isNavControl = link || target.id === 'mobileMenuToggle' || target.matches?.('#mobileMenu a');
+            if (!isNavControl || target.offsetParent !== null) return;
+            if (link) {
+                const key = link.id.startsWith('nav-') ? link.id.slice(4) : link.dataset.mobileNav;
+                if (key) {
+                    if (navDesktopQuery.matches) {
+                        document.getElementById(`nav-${key}`)?.focus();
+                    } else {
+                        document.getElementById('mobileMenuToggle')?.focus();
+                    }
+                    return;
+                }
+            }
+            // The menu toggle and the drawer's follow links have no desktop
+            // counterpart: land on a visible navigation control in the new mode.
+            if (navDesktopQuery.matches) {
+                document.querySelector('.nav-btn')?.focus();
+            } else {
+                document.getElementById('mobileMenuToggle')?.focus();
+            }
+        });
 
         function toggleMobileMenu() {
             updateMobileMenuSpace();
