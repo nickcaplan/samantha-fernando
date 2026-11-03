@@ -11,6 +11,8 @@ async function mockPlaybackProviders(page) {
           loadUri: uri => window.__spotifyCalls.push(['loadUri', uri]),
           seek: position => window.__spotifyCalls.push(['seek', position]),
           play: () => window.__spotifyCalls.push(['play']),
+          resume: () => window.__spotifyCalls.push(['resume']),
+          togglePlay: () => window.__spotifyCalls.push(['togglePlay']),
           pause: () => window.__spotifyCalls.push(['pause']),
           addListener: (event, handler) => {
             window.__spotifyHandlers = window.__spotifyHandlers || {};

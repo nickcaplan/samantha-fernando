@@ -1814,6 +1814,10 @@
         let activeWorksView = 'all';
         let isAudioPlaying = false;
         let isPlaybackStopped = false;
+        // Set whenever the site itself pauses the player, so a paused update
+        // that answers a visitor's pause is never mistaken for the track
+        // having played to its end.
+        let spotifyPauseRequested = false;
         let projectModalTrigger = null;
         let videoModalTrigger = null;
 
@@ -2056,6 +2060,10 @@
         // positions, and a request that never starts surfaces the
         // unavailable message instead of pretending to play.
         let spotifyPlaybackPending = false;
+        // A pending request that is a resume, not a fresh load: the bar kept
+        // its paused presentation and "Resume playback" label, so a repeated
+        // click must leave the in-flight resume (and its position) alone.
+        let spotifyResumePending = false;
         let armedSpotifyTrackId = null;
         let spotifyPlaybackWatchdog = null;
         const SPOTIFY_PLAYBACK_TIMEOUT_MS = 15000;
@@ -2396,10 +2404,26 @@
 
         function clearSpotifyLoading() {
             spotifyPlaybackPending = false;
+            spotifyResumePending = false;
             armedSpotifyTrackId = null;
             window.clearTimeout(spotifyPlaybackWatchdog);
             spotifyPlaybackWatchdog = null;
             hideSoundbarLoading('spotify');
+        }
+
+        // A resume request is pending without the fresh-load presentation:
+        // the track is already loaded, so the soundbar keeps showing the
+        // paused position until the player's confirmation arrives - no
+        // loading message, no cancel label, no icon churn. The pending flag
+        // lets the update handler accept the confirmation, and the watchdog
+        // still surfaces a request that never starts.
+        function awaitSpotifyResumeConfirmation() {
+            spotifyPlaybackPending = true;
+            spotifyResumePending = true;
+            window.clearTimeout(spotifyPlaybackWatchdog);
+            spotifyPlaybackWatchdog = window.setTimeout(() => {
+                if (spotifyPlaybackPending) showSpotifyUnavailable();
+            }, SPOTIFY_PLAYBACK_TIMEOUT_MS);
         }
 
         function armSpotifyLoading(trackId) {
@@ -2514,6 +2538,7 @@
                 // Confirmation must belong to a live request: an event after a
                 // cancellation or stop is stale and must not revive the bar.
                 if (!spotifyPlaybackPending && !isSpotifyPlaying) return;
+                spotifyPauseRequested = false;
                 // A buffering report is not playback: a pending request stays
                 // pending (and the watchdog keeps running) until the player
                 // reports actual playback.
@@ -2521,6 +2546,18 @@
                 clearSpotifyLoading();
                 if (typeof data.position === 'number') spotifyElapsedMs = data.position;
                 if (typeof data.duration === 'number' && data.duration > 0) trackDurationMs = data.duration;
+                // The real embed ends a track with a playing report at the
+                // duration instead of a paused end event: that report IS the
+                // finish, so the bar settles as stopped and the next request
+                // replays from the beginning. Mid-track reports always read
+                // below the duration, so a resume confirmation near the end
+                // is not mistaken for the finish.
+                if (trackDurationMs && spotifyElapsedMs >= trackDurationMs) {
+                    spotifyElapsedMs = trackDurationMs;
+                    isPlaybackStopped = true;
+                    setSpotifyPlaybackState(false, activeSpotifyTrack || currentTrackId);
+                    return;
+                }
                 setSpotifyPlaybackState(true, activeSpotifyTrack || currentTrackId);
                 return;
             }
@@ -2533,10 +2570,20 @@
             if (data.isPaused === true && !spotifyPlaybackPending && (isSpotifyPlaying || spotifyController)) {
                 if (typeof data.position === 'number') spotifyElapsedMs = data.position;
                 if (typeof data.duration === 'number' && data.duration > 0) trackDurationMs = data.duration;
-                if (trackDurationMs && spotifyElapsedMs >= trackDurationMs - 250) {
+                // Only a pause the player raised itself can be the track
+                // ending: a visitor pausing inside the final moments still
+                // holds a paused track to resume, not a finished one.
+                // A report at the duration is the finish no matter whose
+                // pause crossed it: the track is over, so the bar settles as
+                // stopped and the next request replays from the beginning.
+                // Only the near-end window belongs to the player's own
+                // pauses - a visitor pausing inside the final moments still
+                // has a track to resume.
+                if (trackDurationMs && (spotifyElapsedMs >= trackDurationMs || (!spotifyPauseRequested && spotifyElapsedMs >= trackDurationMs - 250))) {
                     spotifyElapsedMs = trackDurationMs;
                     isPlaybackStopped = true;
                 }
+                spotifyPauseRequested = false;
                 setSpotifyPlaybackState(false, activeSpotifyTrack || currentTrackId);
             }
         }
@@ -2589,21 +2636,26 @@
 
             if (spotifyController) {
                 if (activeSpotifyTrack === trackId && spotifyPlaybackPending) {
-                    // Cancel a playback request that has not started yet.
-                    cancelSpotifyPending();
+                    // Cancel a fresh load that has not started yet; a pending
+                    // resume for this track is already doing what the
+                    // reselection asks, so it is left to confirm.
+                    if (!spotifyResumePending) cancelSpotifyPending();
                     return;
                 }
                 if (wasActiveSelection && activeSpotifyTrack === trackId && isSpotifyPlaying) {
+                    spotifyPauseRequested = true;
                     spotifyController.pause();
                     setSpotifyPlaybackState(false, trackId);
                     return;
                 }
                 // Pause/resume applies only while the track is still the
                 // active selection; returning to a track that another
-                // selection displaced starts it from the beginning.
+                // selection displaced starts it from the beginning. Resume
+                // uses the API's resume command: play() restarts the loaded
+                // track from the beginning instead of continuing.
                 if (wasActiveSelection && activeSpotifyTrack === trackId && !wasStopped) {
-                    spotifyController.play();
-                    armSpotifyLoading(trackId);
+                    awaitSpotifyResumeConfirmation();
+                    spotifyController.resume();
                     return;
                 }
                 spotifyElapsedMs = 0;
@@ -2667,8 +2719,11 @@
             updateSoundbarProgress(spotifyElapsedMs);
             document.getElementById('soundStatusIcon').className = `fa-solid fa-${playing ? 'pause' : 'play'} text-sm`;
             document.getElementById('soundbarPauseIcon').className = `fa-solid fa-${playing ? 'pause' : 'play'} text-xs`;
-            document.getElementById('soundbarPauseBtn').setAttribute('aria-label', playing ? 'Pause playback' : 'Resume playback');
-            document.getElementById('soundbarPauseBtn').title = playing ? 'Pause playback' : 'Resume playback';
+            // A finished track replays from zero on the next request, so
+            // name that action honestly: only a mid-track pause resumes.
+            const spotifyToggleLabel = playing ? 'Pause playback' : (isPlaybackStopped ? 'Replay track' : 'Resume playback');
+            document.getElementById('soundbarPauseBtn').setAttribute('aria-label', spotifyToggleLabel);
+            document.getElementById('soundbarPauseBtn').title = spotifyToggleLabel;
             setSoundbarLabel(currentTrackName);
             document.getElementById('soundbar').classList.remove('hidden');
             document.getElementById('waveContainer').classList.toggle('paused', !playing);
@@ -2729,8 +2784,13 @@
             }
             if (activeAudioProvider === 'spotify') {
                 if (spotifyPlaybackPending) {
-                    // Cancel a playback request that has not started yet.
-                    cancelSpotifyPending();
+                    // A fresh load is still cancellable (the button says
+                    // "Cancel playback request"); a resume already in flight
+                    // is not - the button kept saying "Resume playback" and
+                    // the confirmation lands in a moment, so a repeated click
+                    // changes nothing rather than destroying the controller
+                    // and the paused position with it.
+                    if (!spotifyResumePending) cancelSpotifyPending();
                     return;
                 }
                 if (!spotifyController) {
@@ -2747,12 +2807,27 @@
                     return;
                 }
                 if (isSpotifyPlaying) {
+                    spotifyPauseRequested = true;
                     spotifyController.pause();
                     setSpotifyPlaybackState(false, activeSpotifyTrack);
-                } else {
+                } else if (isPlaybackStopped) {
+                    // A finished track has nothing to resume: reload it and
+                    // start from the beginning, the same fresh-replay path
+                    // that re-selecting the track takes.
                     isPlaybackStopped = false;
+                    spotifyElapsedMs = 0;
+                    spotifyController.loadUri(`spotify:track:${currentTrackId}`);
+                    spotifyController.seek(0);
                     spotifyController.play();
                     armSpotifyLoading(currentTrackId);
+                } else {
+                    // A paused track continues with resume(): play() restarts
+                    // the loaded track from the beginning. The track is
+                    // already loaded, so the bar stays steady while the
+                    // confirmation is awaited.
+                    isPlaybackStopped = false;
+                    awaitSpotifyResumeConfirmation();
+                    spotifyController.resume();
                 }
                 return;
             }
@@ -2929,8 +3004,9 @@
             document.getElementById('waveContainer').classList.add('paused');
             document.getElementById('soundStatusIcon').className = 'fa-solid fa-play text-sm';
             document.getElementById('soundbarPauseIcon').className = 'fa-solid fa-play text-xs';
-            document.getElementById('soundbarPauseBtn').setAttribute('aria-label', 'Resume playback');
-            document.getElementById('soundbarPauseBtn').title = 'Resume playback';
+            const pausedToggleLabel = isPlaybackStopped ? 'Replay track' : 'Resume playback';
+            document.getElementById('soundbarPauseBtn').setAttribute('aria-label', pausedToggleLabel);
+            document.getElementById('soundbarPauseBtn').title = pausedToggleLabel;
             document.getElementById('soundbar').classList.remove('hidden');
         }
 
