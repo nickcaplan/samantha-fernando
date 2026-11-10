@@ -32,6 +32,9 @@ The published artifact contains root `index.html`, the exact generated page dire
 - Configuration lives in `netlify.toml`: previews inherit the general `[build]` command (`npm ci && npm run build:css && npm run build:content`, publish `_site/`, Node 22); the production context runs only the redirect writer in `[context.production]`.
 - The Netlify production address (https://samanthafernando.netlify.app) only redirects to the canonical domain; GitHub Pages remains the live host and no custom domain is attached on Netlify.
 - Branch deploys are disabled beyond the production branch `main` (deploy previews for pull requests are a separate context and still build), and the Netlify Drawer and Powered by Netlify badge are switched off.
+- Previews split between Netlify and Cloudflare Pages to stay inside Netlify's monthly build minutes. `node scripts/preview-route.mjs`, run before each push to a pull request branch, checks this month's Netlify minutes: with headroom it prefixes the HEAD commit message with `[CF-Pages-Skip]` so only Netlify builds; at or over the threshold (240 minutes by default) it removes the prefix and labels the PR `cloudflare`, so Netlify's ignore command (`scripts/netlify-ignore.mjs`) skips and Cloudflare Pages builds the preview.
+- When a PR carries the `cloudflare` label, the Netlify check posts "Deploy Preview canceled" by design and the Cloudflare Pages check carries the preview URL. Existing previews keep working; a PR only moves provider on its next push.
+- The Cloudflare Pages project builds with the same command and output directory as Netlify previews, from every non-production branch. Automatic production deployments stay disabled: GitHub Pages remains the live host.
 - The older manual snapshot project (heartfelt-speculoos-87c44e.netlify.app) predates the Git connection and is not part of this flow.
 
 ## Domain And DNS Precautions

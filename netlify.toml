@@ -5,6 +5,7 @@
 # at the live site instead of publishing a second copy.
 
 [build]
+  ignore = "node scripts/netlify-ignore.mjs"
   command = "npm ci && npm run build:css && npm run build:content"
   publish = "_site"
 

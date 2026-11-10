@@ -15,6 +15,10 @@
 - `Works`, `Listen` and `Watch` link to `/works/`, `/listen/` and `/watch/` respectively: three standalone pages rendered from one shared catalogue template, with the Listen or Watch view preselected. `index.html` is the shared source template/fallback, not the publishable homepage; build and serve `_site/` for local review.
 - YouTube cards use thumbnails and the existing in-page modal rather than loading multiple embedded players on page load.
 
+## Pull Request Preview Routing
+
+- Previews split between Netlify and Cloudflare Pages. Before pushing a pull request branch, run `node scripts/preview-route.mjs` from the repository root instead of a plain `git push`; it routes the preview to whichever provider has headroom (see `docs/hosting.md`). Put the preview URL from whichever provider built it in the PR description.
+
 ## Documentation
 
 - `README.md` is the concise public project overview.
