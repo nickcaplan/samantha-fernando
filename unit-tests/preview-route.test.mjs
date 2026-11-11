@@ -36,7 +36,10 @@ globalThis.fetch = async (url, options = {}) => {
   const method = options.method || 'GET';
   appendFileSync(process.env.FIXTURE_DIR + '/requests', method+' '+url+'\\n');
   let status=200, data;
-  if (url.endsWith('/accounts')) data=[{id:'wrong',slug:'other'},{id:'right',slug:'site-team'}];
+  if (url.includes('api.cloudflare.com')) {
+    if(mode==='capacity-fail') status=403;
+    data={success:true,result:url.includes('/deployments?')?[{id:'deployment',created_on:new Date().toISOString()}]:[{name:'site-project'}],result_info:{total_pages:1}};
+  } else if (url.endsWith('/accounts')) data=[{id:'wrong',slug:'other'},{id:'right',slug:'site-team'}];
   else if (url.endsWith('/right/builds/status')) data={minutes:{current:300,included:300}};
   else if (url.includes('api.netlify.com')) throw Error('wrong Netlify team queried');
   else if (url.includes('/pulls?')) {
@@ -61,7 +64,7 @@ globalThis.fetch = async (url, options = {}) => {
     // Strip all real credentials/configuration from the fixture's environment.
     const env = { PATH: join(dir, 'bin') + ':' + process.env.PATH, HOME: dir,
       FIXTURE_DIR: dir, FIXTURE_MODE: mode, NETLIFY_TOKEN: 'fixture',
-      GITHUB_TOKEN: 'fixture', NETLIFY_TEAM: 'site-team', ...overrides };
+      GITHUB_TOKEN: 'fixture', NETLIFY_TEAM: 'site-team', CF_API_TOKEN:'fixture', CF_ACCOUNT_ID:'fixture', ...overrides };
     const result = spawnSync(process.execPath, ['--import', join(dir, 'http.mjs'), script], { cwd: dir, env, encoding: 'utf8', timeout: 10000 });
     const read = name => { try { return readFileSync(join(dir, name), 'utf8'); } catch { return ''; } };
     return { status: result.status, error: result.error, output: result.stdout + result.stderr,
@@ -124,4 +127,14 @@ test('team selection rejects missing, duplicate and malformed account data', () 
   assert.throws(()=>selectNetlifyAccount([{slug:'site-team'},{slug:'site-team'}], 'site-team'));
   assert.throws(()=>selectNetlifyAccount({}, 'site-team'));
   assert.equal(selectNetlifyAccount([{slug:'site-team',id:'right'}], 'right'), 'right');
+});
+
+test('unknown Cloudflare capacity stops before labels, amend or push', () => {
+  for (const overrides of [{CF_API_TOKEN:''},{CF_ACCOUNT_ID:''}]) {
+    const r=run('normal',{CF_PAGES_READY:'nickcaplan/samantha-fernando',...overrides});
+    assert.notEqual(r.status,0); assert.equal(r.pushes,''); assert.equal(r.after,r.before);
+    assert.doesNotMatch(r.requests,/POST .*\/labels/);
+  }
+  const r=run('capacity-fail',{CF_PAGES_READY:'nickcaplan/samantha-fernando'});
+  assert.notEqual(r.status,0); assert.equal(r.pushes,''); assert.equal(r.after,r.before);
 });

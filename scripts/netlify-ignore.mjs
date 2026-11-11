@@ -6,14 +6,20 @@
  * means its preview builds on Cloudflare Pages instead. The label is managed
  * by scripts/preview-route.mjs; see AGENTS.md. Anything that cannot be checked
  * (no PR context, GitHub API unavailable) builds on Netlify as before.
+ * PREVIEW_GITHUB_READ_TOKEN is optional, read-only, and must be supplied only
+ * in trusted Netlify build contexts, never exposed to untrusted fork builds.
+ * Without it, shared-IP rate limits can cause duplicate builds, not lost previews.
  */
 const repo = 'nickcaplan/samantha-fernando';
-const { PULL_REQUEST, REVIEW_ID } = process.env;
+const { PULL_REQUEST, REVIEW_ID, PREVIEW_GITHUB_READ_TOKEN } = process.env;
 
 if (PULL_REQUEST === 'true' && REVIEW_ID) {
   try {
     const res = await fetch(`https://api.github.com/repos/${repo}/pulls/${REVIEW_ID}`, {
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'netlify-ignore' },
+      headers: {
+        Accept: 'application/vnd.github+json', 'User-Agent': 'netlify-ignore',
+        ...(PREVIEW_GITHUB_READ_TOKEN ? { Authorization: `Bearer ${PREVIEW_GITHUB_READ_TOKEN}` } : {}),
+      },
     });
     if (res.ok) {
       const pr = await res.json();

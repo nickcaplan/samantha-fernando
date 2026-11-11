@@ -28,15 +28,16 @@
  *   CF_PAGES_READY             Exact owner/repo, only after verifying a branch
  *                              preview builds on its configured Pages project.
  *   NETLIFY_MINUTES_THRESHOLD  Flip point in build minutes (default 240).
- *   CF_API_TOKEN, CF_ACCOUNT_ID, CF_PAGES_PROJECTS (comma separated)
- *                              Optional: warn when this month's Cloudflare
- *                              Pages deployments approach the 500 build cap.
+ *   CF_API_TOKEN, CF_ACCOUNT_ID Required for Cloudflare: read all Pages projects
+ *                              and deployments to check account-wide capacity.
+ *                              Stop at 450 builds, leaving conservative headroom.
  *
  * Without NETLIFY_TOKEN (or if the usage API fails) the script routes to
  * Netlify, matching the long-standing setup. Without a GitHub token it cannot
  * move a PR to Cloudflare, so it also routes to Netlify and warns.
  */
 import { execFileSync } from 'node:child_process';
+import { checkCloudflareCapacity } from './preview-capacity.mjs';
 import { alignPreviewLabel } from './preview-label.mjs';
 import { selectNetlifyAccount, readPreviewPullRequest, choosePreviewProvider } from './preview-config.mjs';
 
@@ -96,31 +97,6 @@ async function netlifyMinutes(token) {
   return { used, included: Number.isFinite(included) ? included : 300, periodEnd: minutes.period_end_date };
 }
 
-async function cloudflareDeploymentCount() {
-  const { CF_API_TOKEN, CF_ACCOUNT_ID, CF_PAGES_PROJECTS } = process.env;
-  if (!CF_API_TOKEN || !CF_ACCOUNT_ID || !CF_PAGES_PROJECTS) return null;
-  const monthStart = new Date();
-  monthStart.setUTCDate(1);
-  monthStart.setUTCHours(0, 0, 0, 0);
-  let total = 0;
-  for (const project of CF_PAGES_PROJECTS.split(',').map((p) => p.trim()).filter(Boolean)) {
-    let page = 1;
-    for (;;) {
-      const res = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/pages/projects/${project}/deployments?per_page=100&page=${page}`,
-        { headers: { Authorization: `Bearer ${CF_API_TOKEN}` } },
-      ).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))));
-      const deployments = res.result ?? [];
-      if (deployments.length === 0) break;
-      total += deployments.filter((d) => new Date(d.created_on) >= monthStart).length;
-      const oldest = deployments[deployments.length - 1];
-      if (new Date(oldest.created_on) < monthStart || deployments.length < 100) break;
-      page += 1;
-    }
-  }
-  return total;
-}
-
 // 1. Measure Netlify usage.
 let route = 'netlify';
 let minutes = null;
@@ -153,6 +129,12 @@ if (route === 'cloudflare') {
   }
 }
 console.log(`Route: ${route === 'cloudflare' ? 'Cloudflare Pages' : 'Netlify'}`);
+
+// Capacity is account-wide and checked before any label or commit change.
+if (route === 'cloudflare') {
+  const count = await checkCloudflareCapacity({ token: process.env.CF_API_TOKEN, accountId: process.env.CF_ACCOUNT_ID });
+  console.log(`Cloudflare current-month deployments: ${count}; below conservative 450-build routing cutoff.`);
+}
 
 // Verify provider selection before amending the commit or pushing.
 await alignPreviewLabel({ api, slug, pr, route, label: LABEL, token: githubToken, dryRun: DRY_RUN });
@@ -194,12 +176,7 @@ if (!DRY_RUN) {
 // 7. Report.
 if (route === 'cloudflare') {
   console.log('The preview builds on Cloudflare Pages: https://<branch>.<project>.pages.dev (check the PR for the Cloudflare Pages check run).');
-  try {
-    const count = await cloudflareDeploymentCount();
-    if (count !== null) console.log(`Cloudflare Pages deployments this month: ${count} of 500${count >= 450 ? ' - near the limit, consider pausing previews' : ''}.`);
-  } catch (error) {
-    console.log(`Could not count Cloudflare deployments (${error.message}).`);
-  }
+
 } else {
   console.log('The preview builds on Netlify as a deploy preview for the PR.');
 }

@@ -17,7 +17,7 @@
 
 ## Pull Request Preview Routing
 
-- Previews split between Netlify and Cloudflare Pages. Before pushing a pull request branch, run `node scripts/preview-route.mjs` from the repository root instead of a plain `git push`; it routes the preview to whichever provider has headroom (see `docs/hosting.md`). Put the preview URL from whichever provider built it in the PR description. Set `NETLIFY_TEAM` to the verified site-owner team slug or ID; set `CF_PAGES_READY` to this exact owner/repo only after a successful Pages branch build. Missing setup stays on Netlify. The router stops on PR lookup or label verification failures. Test its isolated failure paths with `node --test unit-tests/preview-route.test.mjs` before changing it.
+- Previews split between Netlify and Cloudflare Pages. Before pushing a pull request branch, run `node scripts/preview-route.mjs` from the repository root instead of a plain `git push`; it routes the preview to whichever provider has headroom (see `docs/hosting.md`). Put the preview URL from whichever provider built it in the PR description. Set `NETLIFY_TEAM` to the verified site-owner team slug or ID; set `CF_PAGES_READY` to this exact owner/repo only after a successful Pages branch build. Missing setup stays on Netlify. The router stops on PR lookup or label verification failures and requires an account-wide Cloudflare capacity check before changing provider labels. Test its isolated failure paths with `node --test unit-tests/preview-route.test.mjs` before changing it.
 
 ## Documentation
 
