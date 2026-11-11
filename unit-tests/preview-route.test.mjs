@@ -27,7 +27,7 @@ function run(mode = 'normal', overrides = {}) {
     writeFileSync(join(dir, 'staged'), 'must stay local'); git(dir, 'add', 'staged');
     git(dir, 'remote', 'add', 'origin', 'https://github.com/nickcaplan/samantha-fernando.git');
     mkdirSync(join(dir, 'bin'));
-    writeFileSync(join(dir, 'bin', 'git'), '#!/bin/sh\nif [ "$1" = push ]; then printf "%s\\n" "$*" >> "$FIXTURE_DIR/pushes"; exit 0; fi\nexec /usr/bin/git "$@"\n', { mode: 0o700 });
+    writeFileSync(join(dir, 'bin', 'git'), '#!/bin/sh\nif [ "$1" = ls-remote ]; then exit 0; fi\nif [ "$1" = push ]; then printf "%s\\n" "$*" >> "$FIXTURE_DIR/pushes"; exit 0; fi\nexec /usr/bin/git "$@"\n', { mode: 0o700 });
     writeFileSync(join(dir, 'http.mjs'), `
 import { appendFileSync } from 'node:fs';
 const mode = process.env.FIXTURE_MODE;
@@ -54,7 +54,7 @@ globalThis.fetch = async (url, options = {}) => {
     status=mode==='add-fail'?403:200;
     if(status===200) labels=[{name:'cloudflare'}];
     data=labels;
-  } else if (url.endsWith('/labels') && method==='GET') {
+  } else if (url.includes('/labels?') && method==='GET') {
     status=mode==='verify-fail'?503:200;
     data=mode==='verify-invalid'?{}:mode==='verify-mismatch'?[]:labels;
   } else throw Error('Unexpected request '+method+' '+url);
@@ -111,8 +111,8 @@ test('missing/inaccessible Netlify team falls back safely without wrong usage qu
     assert.doesNotMatch(r.requests,/builds\/status/);
   }
 });
-test('genuine absent label DELETE404 is confirmed by readback', () => {
-  const r=run('delete-404'); assert.equal(r.status,0,r.output); assert.match(r.pushes,/push/);
+test('absent label skips unnecessary DELETE and confirms by readback', () => {
+  const r=run('delete-404'); assert.equal(r.status,0,r.output); assert.match(r.pushes,/push/); assert.doesNotMatch(r.requests,/DELETE/);
 });
 test('successful lookup with no PR is distinct from lookup failure', () => {
   const r=run('no-pr',{CF_PAGES_READY:'nickcaplan/samantha-fernando'});

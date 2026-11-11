@@ -37,6 +37,7 @@
  * move a PR to Cloudflare, so it also routes to Netlify and warns.
  */
 import { execFileSync } from 'node:child_process';
+import { inspectPreviewHistory, setPreviewMessage } from './preview-git.mjs';
 import { checkCloudflareCapacity } from './preview-capacity.mjs';
 import { alignPreviewLabel } from './preview-label.mjs';
 import { selectNetlifyAccount, readPreviewPullRequest, choosePreviewProvider } from './preview-config.mjs';
@@ -97,6 +98,9 @@ async function netlifyMinutes(token) {
   return { used, included: Number.isFinite(included) ? included : 300, periodEnd: minutes.period_end_date };
 }
 
+// Check live history before any provider-label or commit mutation.
+const history = inspectPreviewHistory(git, branch);
+
 // 1. Measure Netlify usage.
 let route = 'netlify';
 let minutes = null;
@@ -140,7 +144,6 @@ if (route === 'cloudflare') {
 await alignPreviewLabel({ api, slug, pr, route, label: LABEL, token: githubToken, dryRun: DRY_RUN });
 
 // 4. Adjust the HEAD commit message prefix.
-let amended = false;
 const headOnMain = (() => {
   try { git('merge-base', '--is-ancestor', 'HEAD', 'origin/main'); return true; } catch { return false; }
 })();
@@ -155,20 +158,14 @@ if (headOnMain) {
       ? `Prefixing HEAD commit message with ${SKIP_PREFIX}.`
       : `Removing the Cloudflare skip prefix from HEAD.`);
     if (!DRY_RUN) {
-      git('commit', '--amend', '--only', '-m', wanted);
-      amended = true;
+      setPreviewMessage(git, wanted, history.publishedHead);
     }
   }
 }
 
 // 6. Push.
 if (!DRY_RUN) {
-  const upstream = (() => { try { return git('rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'); } catch { return ''; } })();
-  const pushArgs = amended
-    ? ['push', '--force-with-lease', 'origin', `HEAD:${branch}`]
-    : upstream
-      ? ['push']
-      : ['push', '-u', 'origin', `HEAD:${branch}`];
+  const pushArgs = ['push', '-u', 'origin', `HEAD:${branch}`];
   console.log(`git ${pushArgs.join(' ')}`);
   git(...pushArgs);
 }

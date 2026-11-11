@@ -23,7 +23,8 @@ if (PULL_REQUEST === 'true' && REVIEW_ID) {
     });
     if (res.ok) {
       const pr = await res.json();
-      if ((pr.labels || []).some((label) => label.name === 'cloudflare')) {
+      if (pr.head?.repo?.full_name?.toLowerCase() === repo.toLowerCase() &&
+          (pr.labels || []).some((label) => label.name === 'cloudflare')) {
         console.log(`PR #${REVIEW_ID} is labelled "cloudflare": skipping this Netlify build; the preview builds on Cloudflare Pages.`);
         process.exit(0);
       }

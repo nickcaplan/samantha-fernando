@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const script=resolve('scripts/netlify-ignore.mjs');
-function run({status=200,labels=['cloudflare'],token='',network=false,pr='true'}={}) {
+function run({status=200,labels=['cloudflare'],token='',network=false,pr='true',head='nickcaplan/samantha-fernando'}={}) {
   const dir=mkdtempSync(join(tmpdir(),'preview-ignore-'));
   try {
     const fixture=join(dir,'fixture.mjs');
@@ -14,7 +14,7 @@ function run({status=200,labels=['cloudflare'],token='',network=false,pr='true'}
       globalThis.fetch=async(url,options)=>{
         writeFileSync(${JSON.stringify(join(dir,'request'))},JSON.stringify({url,headers:options.headers}));
         if(${network})throw Error('fixture network failure');
-        return {ok:${status>=200&&status<300},status:${status},json:async()=>({labels:${JSON.stringify(labels.map(name=>({name})))}})};
+        return {ok:${status>=200&&status<300},status:${status},json:async()=>({head:{repo:{full_name:${JSON.stringify(head)}}},labels:${JSON.stringify(labels.map(name=>({name})))}})};
       };`);
     const r=spawnSync(process.execPath,['--import',fixture,script],{env:{PULL_REQUEST:pr,REVIEW_ID:'77',PREVIEW_GITHUB_READ_TOKEN:token},encoding:'utf8',timeout:5000});
     let request=null;try{request=JSON.parse(readFileSync(join(dir,'request'),'utf8'));}catch{}
@@ -32,4 +32,9 @@ test('rate limit and network failure deliberately build rather than lose preview
 });
 test('non-PR build makes no GitHub request',()=>{
   const r=run({pr:'false'});assert.equal(r.status,1);assert.equal(r.request,null);
+});
+
+test('fork and missing head build on Netlify even when labelled',()=>{
+  for(const head of ['someone/fork','',null])assert.equal(run({head}).status,1);
+  assert.equal(run({head:'NickCaplan/Samantha-Fernando'}).status,0);
 });
