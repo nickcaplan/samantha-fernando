@@ -24,6 +24,9 @@
  *                              GET /api/v1/{account_id}/builds/status.
  *   GITHUB_TOKEN or GH_TOKEN   Repo token, used to find the open PR for this
  *                              branch and to add or remove its label.
+ *   NETLIFY_TEAM               Required team slug or ID for usage measurement.
+ *   CF_PAGES_READY             Exact owner/repo, only after verifying a branch
+ *                              preview builds on its configured Pages project.
  *   NETLIFY_MINUTES_THRESHOLD  Flip point in build minutes (default 240).
  *   CF_API_TOKEN, CF_ACCOUNT_ID, CF_PAGES_PROJECTS (comma separated)
  *                              Optional: warn when this month's Cloudflare
@@ -34,6 +37,8 @@
  * move a PR to Cloudflare, so it also routes to Netlify and warns.
  */
 import { execFileSync } from 'node:child_process';
+import { alignPreviewLabel } from './preview-label.mjs';
+import { selectNetlifyAccount, readPreviewPullRequest, choosePreviewProvider } from './preview-config.mjs';
 
 const SKIP_PREFIX = '[CF-Pages-Skip]';
 const SKIP_PATTERN = /^\[(CF-Pages-Skip|CI Skip|CI-Skip|Skip CI|Skip-CI)\]\s*/i;
@@ -79,7 +84,7 @@ async function netlifyMinutes(token) {
   const headers = { Authorization: `Bearer ${token}`, 'User-Agent': 'preview-route' };
   const accounts = await fetch('https://api.netlify.com/api/v1/accounts', { headers })
     .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))));
-  const accountId = accounts?.[0]?.id || accounts?.[0]?.slug;
+  const accountId = selectNetlifyAccount(accounts, process.env.NETLIFY_TEAM);
   if (!accountId) throw new Error('no Netlify account found');
   const status = await fetch(`https://api.netlify.com/api/v1/${accountId}/builds/status`, { headers })
     .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))));
@@ -125,7 +130,7 @@ if (!process.env.NETLIFY_TOKEN) {
   try {
     minutes = await netlifyMinutes(process.env.NETLIFY_TOKEN);
     console.log(`Netlify build minutes this period: ${minutes.used} of ${minutes.included} (threshold ${THRESHOLD}).`);
-    if (minutes.used >= THRESHOLD) route = 'cloudflare';
+    route = choosePreviewProvider(minutes.used, THRESHOLD, process.env.CF_PAGES_READY === slug);
   } catch (error) {
     console.log(`Could not read Netlify build minutes (${error.message}): routing to Netlify.`);
   }
@@ -134,7 +139,7 @@ if (!process.env.NETLIFY_TOKEN) {
 // 2. Find the open PR for this branch.
 const githubToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
 const prs = await api(`https://api.github.com/repos/${slug}/pulls?head=${owner}:${encodeURIComponent(branch)}&state=open`, { token: githubToken });
-const pr = prs.ok && Array.isArray(prs.json) ? prs.json[0] : null;
+const pr = readPreviewPullRequest(prs);
 if (pr) console.log(`Open PR: #${pr.number} (${pr.title})`);
 
 // 3. A Cloudflare route needs the PR label; without a token or PR, stay on Netlify.
@@ -148,6 +153,9 @@ if (route === 'cloudflare') {
   }
 }
 console.log(`Route: ${route === 'cloudflare' ? 'Cloudflare Pages' : 'Netlify'}`);
+
+// Verify provider selection before amending the commit or pushing.
+await alignPreviewLabel({ api, slug, pr, route, label: LABEL, token: githubToken, dryRun: DRY_RUN });
 
 // 4. Adjust the HEAD commit message prefix.
 let amended = false;
@@ -165,23 +173,9 @@ if (headOnMain) {
       ? `Prefixing HEAD commit message with ${SKIP_PREFIX}.`
       : `Removing the Cloudflare skip prefix from HEAD.`);
     if (!DRY_RUN) {
-      git('commit', '--amend', '-m', wanted);
+      git('commit', '--amend', '--only', '-m', wanted);
       amended = true;
     }
-  }
-}
-
-// 5. Align the PR label.
-if (pr && githubToken && !DRY_RUN) {
-  await api(`https://api.github.com/repos/${slug}/labels`, {
-    token: githubToken, method: 'POST',
-    body: { name: LABEL, color: '1d76db', description: 'Preview builds on Cloudflare Pages instead of Netlify' },
-  }); // 422 = already exists, fine either way
-  if (route === 'cloudflare') {
-    const res = await api(`https://api.github.com/repos/${slug}/issues/${pr.number}/labels`, { token: githubToken, method: 'POST', body: { labels: [LABEL] } });
-    console.log(res.ok ? `Labelled PR #${pr.number} "${LABEL}".` : `Could not label PR #${pr.number} (HTTP ${res.status}).`);
-  } else {
-    await api(`https://api.github.com/repos/${slug}/issues/${pr.number}/labels/${LABEL}`, { token: githubToken, method: 'DELETE' });
   }
 }
 
