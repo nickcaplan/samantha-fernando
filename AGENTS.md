@@ -1,5 +1,7 @@
 # Samantha Fernando Site
 
+If CodeRabbit is rate-limited or skipped, run Robin straight away (/review comment or workflow run).
+
 ## GitHub Pages
 
 - Repository: https://github.com/nickcaplan/samantha-fernando
