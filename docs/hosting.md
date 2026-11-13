@@ -28,7 +28,7 @@ The published artifact contains root `index.html`, the exact generated page dire
 
 ## Pull Request Previews
 
-- Netlify builds a deploy preview for every pull request against `main`; the preview URL appears as a comment and check on the pull request.
+- Deploy previews are opt in: Netlify builds a preview for a pull request against `main` only when the PR carries the `preview` label (add the label, then push; an empty commit is enough). Without the label the build is skipped and uses no build minutes. The preview URL appears as a comment and check on the pull request.
 - Configuration lives in `netlify.toml`: previews inherit the general `[build]` command (`npm ci && npm run build:css && npm run build:content`, publish `_site/`, Node 22); the production context runs only the redirect writer in `[context.production]`.
 - The Netlify production address (https://samanthafernando.netlify.app) only redirects to the canonical domain; GitHub Pages remains the live host and no custom domain is attached on Netlify.
 - Branch deploys are disabled beyond the production branch `main` (deploy previews for pull requests are a separate context and still build), and the Netlify Drawer and Powered by Netlify badge are switched off.
