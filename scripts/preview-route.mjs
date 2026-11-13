@@ -1,40 +1,11 @@
 #!/usr/bin/env node
 /**
- * preview-route.mjs - push this branch so its pull request preview builds on
- * the provider with headroom, splitting preview load between Netlify and
- * Cloudflare Pages.
- *
- * The split:
- *   - Netlify under threshold: the HEAD commit message carries the prefix
- *     [CF-Pages-Skip] (so Cloudflare Pages skips the push) and the PR's
- *     `cloudflare` label is removed. Only Netlify builds the preview.
- *   - Netlify at or over threshold: the prefix comes off and the PR is
- *     labelled `cloudflare`, so Netlify's ignore command
- *     (scripts/netlify-ignore.mjs) skips the build and Cloudflare Pages
- *     builds the preview instead.
- *
- * Run from the repository root instead of a plain `git push` whenever pushing
- * a pull request branch:
- *
- *   node scripts/preview-route.mjs [--dry-run]
- *
- * Environment:
- *   NETLIFY_TOKEN              Netlify personal access token. Read-only use:
- *                              GET /api/v1/accounts and
- *                              GET /api/v1/{account_id}/builds/status.
- *   GITHUB_TOKEN or GH_TOKEN   Repo token, used to find the open PR for this
- *                              branch and to add or remove its label.
- *   NETLIFY_TEAM               Required team slug or ID for usage measurement.
- *   CF_PAGES_READY             Exact owner/repo, only after verifying a branch
- *                              preview builds on its configured Pages project.
- *   NETLIFY_MINUTES_THRESHOLD  Flip point in build minutes (default 240).
- *   CF_API_TOKEN, CF_ACCOUNT_ID Required for Cloudflare: read all Pages projects
- *                              and deployments to check account-wide capacity.
- *                              Stop at 450 builds, leaving conservative headroom.
- *
- * Without NETLIFY_TOKEN (or if the usage API fails) the script routes to
- * Netlify, matching the long-standing setup. Without a GitHub token it cannot
- * move a PR to Cloudflare, so it also routes to Netlify and warns.
+ * Optional fast-forward push helper for explicitly requested previews.
+ * Netlify usage is scoped by NETLIFY_TEAM. Preview consent remains the
+ * `preview` label; this script never adds it. A proposed Cloudflare route
+ * stops before mutations because retained deployments cannot establish
+ * authoritative monthly build usage. See docs/hosting.md.
+ * Run: node scripts/preview-route.mjs [--dry-run]
  */
 import { execFileSync } from 'node:child_process';
 import { inspectPreviewHistory, setPreviewMessage } from './preview-git.mjs';
