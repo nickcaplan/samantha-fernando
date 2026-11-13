@@ -77,3 +77,11 @@ Display heading reflow (`tests/display-heading-reflow.spec.js`) checks Featured 
 The display-heading test derives the expected style from the actual phone media query at the 768px boundary: WebKit excludes its desktop scrollbar from that viewport. Separate 780px cases assert the tablet treatment, while phone cases still assert the phone treatment. No browser-specific stylesheet exception is used.
 
 Performance heading reflow (`tests/performance-heading-reflow.spec.js`) checks 320/390px phones and desktop in both themes at normal and 200% root text size. It measures individual word ranges, so word-internal splits fail even without page overflow; it also checks the actual rem-based size increase, default recent cards, expanded grouped-history titles and page/card containment.
+
+## Manual hosted design, audio and performance checks
+
+Before calling a visible change ready, review the hosted phone and desktop experience in light and dark mode, with normal and enlarged text. Make separate whole-journey and whole-page passes: try controls, repeated actions, loading and error states, then judge the complete page's hierarchy, spacing, readability and consistency. Passing tests and absence of overlap are not a design verdict (confirmed 5 November 2026).
+
+Real audio-output checks are imperative for this site (confirmed 30 October 2026). Verify output from the deployed player, including provider switching and navigation where relevant; a playing flag, progress animation or mock is not evidence of sound. Keep deterministic mocked-provider tests in CI. If actual output cannot be checked, report that gap explicitly rather than calling playback verified. Preview output does not establish production output.
+
+Check performance after changes (confirmed 2 November 2026). For loading or animation changes, compare like-for-like phone and desktop cold/warm measurements before and after, flag measured slowdowns before merge and check production after deployment. A missing baseline is unmeasured, not zero impact.

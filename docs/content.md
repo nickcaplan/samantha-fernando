@@ -2,7 +2,7 @@
 
 This file is the complete content inventory for the static site. Biography and Works & Media are managed in Sanity and rendered into static pages at build time. Keep this record aligned with published CMS content and committed fallbacks rather than treating `index.html` as the editorial content store.
 
-Copy conventions: use British English, do not use em dashes and do not use Oxford commas.
+Copy conventions: use British English and ordinary ASCII hyphens for prose dashes, not en dashes or em dashes (confirmed 31 October 2026). Do not use Oxford commas.
 
 ## Site Metadata
 
@@ -232,11 +232,12 @@ Soundbar label overrides: Balconies uses `Balconies · Olivia de Prato`; Everyth
 
 More tracks are available on Samantha's SoundCloud and Spotify pages. Not all recordings are hosted publicly for rights reasons. Please use the enquiry form to request audio for unreleased works.
 
-### Soundbar Progress Proof Of Concept
+### Soundbar Playback And Progress
 
 - The soundbar presents elapsed time and a display-only progress line for all embedded recordings. It does not support seeking.
 - SoundCloud progress is retrieved from the Widget API and includes the recording duration.
-- Spotify progress is a local elapsed-time estimate for the fixed 30-second preview. The Spotify IFrame API does not expose playback position or seeking.
+- Spotify position, duration and pause state come from the player's `playback_update` reports. Do not assume a fixed 30-second duration or manufacture confirmed playback from an elapsed-time timer. Pending, cancellation and unavailable states follow `docs/test-strategy.md`.
+- The visual fill moves smoothly between real reports, clamped to duration and re-anchored by the next report. Time labels and accessible values use the reported position; pause, stop and track changes stop the visual advance ([PR #58](https://github.com/nickcaplan/samantha-fernando/pull/58)).
 - The header Listen control and soundbar pause control pause or resume the active recording.
 - The soundbar has separate restart and stop controls. Stop clears all playback state and hides the soundbar immediately; opening a video does the same before playback begins.
 
