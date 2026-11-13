@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const script=resolve('scripts/netlify-ignore.mjs');
-function run({status=200,labels=['cloudflare'],token='',network=false,pr='true',head='nickcaplan/samantha-fernando'}={}) {
+function run({status=200,labels=['preview','cloudflare'],token='',network=false,pr='true',head='nickcaplan/samantha-fernando'}={}) {
   const dir=mkdtempSync(join(tmpdir(),'preview-ignore-'));
   try {
     const fixture=join(dir,'fixture.mjs');
@@ -28,7 +28,7 @@ test('ignore check without auth still reads public labels',()=>{
   const r=run();assert.equal(r.status,0);assert.equal(r.request.headers.Authorization,undefined);
 });
 test('rate limit and network failure deliberately build rather than lose preview',()=>{
-  for(const options of [{status:403},{status:429},{network:true},{labels:[]}])assert.equal(run(options).status,1);
+  for(const options of [{status:403},{status:429},{network:true}])assert.equal(run(options).status,1);
 });
 test('non-PR build makes no GitHub request',()=>{
   const r=run({pr:'false'});assert.equal(r.status,1);assert.equal(r.request,null);
@@ -37,4 +37,9 @@ test('non-PR build makes no GitHub request',()=>{
 test('fork and missing head build on Netlify even when labelled',()=>{
   for(const head of ['someone/fork','',null])assert.equal(run({head}).status,1);
   assert.equal(run({head:'NickCaplan/Samantha-Fernando'}).status,0);
+});
+
+test('no preview consent skips even if a provider label exists',()=>{
+ for(const labels of [[],['cloudflare']])assert.equal(run({labels}).status,0);
+ assert.equal(run({labels:['preview']}).status,1);
 });

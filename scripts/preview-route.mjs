@@ -136,8 +136,7 @@ console.log(`Route: ${route === 'cloudflare' ? 'Cloudflare Pages' : 'Netlify'}`)
 
 // Capacity is account-wide and checked before any label or commit change.
 if (route === 'cloudflare') {
-  const count = await checkCloudflareCapacity({ token: process.env.CF_API_TOKEN, accountId: process.env.CF_ACCOUNT_ID });
-  console.log(`Cloudflare current-month deployments: ${count}; below conservative 450-build routing cutoff.`);
+  await checkCloudflareCapacity();
 }
 
 // Verify provider selection before amending the commit or pushing.

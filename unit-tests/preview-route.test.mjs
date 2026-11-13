@@ -99,10 +99,10 @@ test('Cloudflare readiness must match this exact repository', () => {
     assert.match(r.output,/Route: Netlify/); assert.doesNotMatch(r.requests,/POST .*\/labels/);
   }
 });
-test('verified readiness and label readback allow Cloudflare push', () => {
+test('readiness and labels cannot substitute for authoritative Cloudflare usage', () => {
   const r = run('normal', {CF_PAGES_READY:'nickcaplan/samantha-fernando'});
-  assert.equal(r.status,0,r.output); assert.match(r.output,/Route: Cloudflare Pages/);
-  assert.match(r.requests,/POST .*\/labels/); assert.match(r.pushes,/push/);
+  assert.notEqual(r.status,0,r.output); assert.match(r.output,/capacity is unknown/);
+  assert.doesNotMatch(r.requests,/POST .*\/labels/); assert.equal(r.pushes,'');
 });
 test('missing/inaccessible Netlify team falls back safely without wrong usage query', () => {
   for (const team of ['', 'missing']) {

@@ -1,5 +1,7 @@
 # Samantha Fernando Site
 
+If CodeRabbit is rate-limited or skipped, run Robin straight away (/review comment or workflow run).
+
 ## GitHub Pages
 
 - Repository: https://github.com/nickcaplan/samantha-fernando
@@ -17,7 +19,7 @@
 
 ## Pull Request Preview Routing
 
-- Previews split between Netlify and Cloudflare Pages. Before pushing a pull request branch, run `node scripts/preview-route.mjs` from the repository root instead of a plain `git push`; it routes the preview to whichever provider has headroom (see `docs/hosting.md`). Put the preview URL from whichever provider built it in the PR description. Set `NETLIFY_TEAM` to the verified site-owner team slug or ID; set `CF_PAGES_READY` to this exact owner/repo only after a successful Pages branch build. Cloudflare not marked ready stays on Netlify; once Cloudflare is selected, missing capacity credentials stop the command. Published commits are never amended: a routing marker commit preserves their history, and pushes are always normal fast-forwards. Unknown or divergent remote history stops before labels or commits change. The router stops on PR lookup or label verification failures and requires an account-wide Cloudflare capacity check before changing provider labels. Test its isolated failure paths with `node --test unit-tests/preview-route.test.mjs` before changing it.
+Preview builds remain opt in via the `preview` label. The optional routing helper stops Cloudflare selection while authoritative monthly usage is unavailable; deployment history is not a billing counter. See `docs/hosting.md`.
 
 ## Documentation
 
