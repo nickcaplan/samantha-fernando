@@ -131,3 +131,30 @@ Report the result through the agent's normal channel:
 - YouTube cards open an in-page modal: open and close it repeatedly and across several cards.
 - Exercise the cookie banner accept and reject paths, and check the biography, which is built from Sanity content at build time.
 - Never submit the contact form: it sends a real enquiry through Formspree. Check client-side validation only, without a successful submit.
+
+## Standing maintenance agents
+
+Four further standing prompts keep the site healthy between merges. Suggested cadences are marked on each; scheduling lives outside the repo. Findings are advice, not permission to change code: fixes still go through a PR with independent review and Nick's explicit merge approval. Each prompt reports verdict first (**No issues found**, **Issues found** or **Not checked**), then numbered findings with severity, reproduction or evidence and environment, then what was and was not checked. Open a GitHub issue for each actionable finding, after checking for duplicates.
+
+### Enlarged text and phone checker (suggested: after every UI merge)
+
+> Check the live site at phone widths and at enlarged text sizes, up to 200% where the site supports it, in every supported theme. Look for the defects this kind of site keeps having: text overflowing its container, buttons or pills that clip, wrap mid-word or lose equal widths, icons drifting out of alignment, columns becoming unreadably narrow and controls overlapping or becoming unreachable. Exercise interactive controls at these settings: menus, dropdowns, forms, modals and media players. Judge actual rendered layouts from DOM measurements and screenshots, not source or test output alone. Use Android/Pixel 8 as the phone reference where practical and distinguish emulation from a real device. Report viewport, theme and text size for every finding.
+
+### Link and content checker (suggested: weekly)
+
+> Crawl the live site and check every internal and external link, button and asset: broken links, redirects to dead ends, wrong anchors and missing images, audio, video or documents. Then read the visible copy for content problems: placeholder or TBC text, stale dates, expired events still presented as upcoming, totals or counts that no longer match their source and pages that contradict each other. Do not invent replacement facts: report the stale or inconsistent content and its location, with the correct source when one exists in the repository or its linked references. Never submit forms or complete external flows while checking.
+
+### Dependency and security watcher (suggested: weekly)
+
+> Review the repository's dependencies and automation for risk: known vulnerabilities (run the repository's audit tooling, such as `npm audit`, and read the dependency-scan results in CI), outdated packages with security fixes, new or unexpected dependencies in recent PRs, secrets or tokens in any committed file, workflow permissions broader than needed and unpinned or unsafe third-party actions. On the live site, check security headers and any exposed endpoints where applicable. Never expose a credential in a finding: describe its location and type only. Rank findings by severity with a suggested fix and open an issue for anything actionable.
+
+### Page speed check (suggested: weekly, and after merges that touch loading, media or scripts)
+
+> Measure the live site's speed like-for-like and compare it with the previous recorded baseline: cold and warm loads on phone and desktop class connections, covering the main pages and the heaviest page. Record the numbers, method and date so the next run can compare. Flag regressions with the likely cause from recent changes, such as new images, scripts, fonts or embeds. Check that media players and other embeds do not block first render. Report measured results only; if a baseline is missing, say the change is unmeasured rather than zero impact.
+
+### Samantha Fernando site maintenance focus
+
+- Enlarged text and phone: include the sound bar, SoundCloud and Spotify players and the YouTube modal; controls must stay reachable and playback usable at phone width and 200% text.
+- Link and content: check event dates, that SoundCloud, Spotify and YouTube embeds still resolve and that the biography matches the Sanity source; the contact form is link-checked but never submitted.
+- Dependency and security: public repo; confirm no Sanity tokens or Formspree details beyond the public endpoint appear in committed files, and check the publish webhook secret handling in docs/sanity.md stays accurate.
+- Page speed: the catalogue pages load many embeds; verify players are deferred and measure the heaviest catalogue page, not only the homepage.
