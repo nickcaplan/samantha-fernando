@@ -24,6 +24,36 @@ jobs:
       contents: read
       pull-requests: write
     steps:
+      - name: Check shared OpenRouter free quota before requesting a review
+        env:
+          ROBIN_KEY: ${{ secrets.OPENROUTER_ROBIN_PILOT }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import datetime, json, os, urllib.error, urllib.request
+          request = urllib.request.Request('https://openrouter.ai/api/v1/key',
+              headers={'Authorization': 'Bearer ' + os.environ['ROBIN_KEY']})
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  data = json.load(response)['data']
+          except (urllib.error.URLError, ValueError, KeyError) as error:
+              # Never log the response, request headers or credential.
+              raise SystemExit('Cannot verify OpenRouter free quota; no review was run.') from None
+          quota = data.get('free_model_daily_requests', {})
+          remaining = quota.get('remaining')
+          if type(remaining) is not int or remaining < 0:
+              raise SystemExit('OpenRouter free quota is unknown; no review was run.')
+          if remaining == 0:
+              reset = (datetime.datetime.now(datetime.timezone.utc).date() + datetime.timedelta(days=1)).isoformat()
+              message = ('OpenRouter shared free daily quota exhausted. No review was run. '
+                         'Do not retry any repository before ' + reset + ' 00:00 UTC. '
+                         'Changing free models or keys does not restore account quota. '
+                         'This is not a code-review pass.')
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+                  summary.write(message + '\n')
+              raise SystemExit(message)
+          print('OpenRouter shared free requests remaining: ' + str(remaining))
+          PY
       - name: Validate the public same-repository PR and complete diff
         id: target
         env:
