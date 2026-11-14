@@ -4,7 +4,9 @@
  *
  * Pull request deploy previews are opt in: they build only when the PR
  * carries the `preview` label. Add the label, then push (an empty commit is
- * enough) to build a preview. Anything that cannot be checked (no PR
+ * enough) to build a preview. A PR carrying Render's native `render-preview`
+ * label is skipped here because its preview builds on Render instead.
+ * Anything that cannot be checked (no PR
  * context, GitHub API unavailable) builds as before, so production and
  * branch behaviour is unchanged.
  */
@@ -21,6 +23,10 @@ if (PULL_REQUEST === 'true' && REVIEW_ID) {
       const labels = (pr.labels || []).map((label) => label.name);
       if (!labels.includes('preview')) {
         console.log(`PR #${REVIEW_ID} has no "preview" label: skipping this deploy preview. Add the label and push to build one.`);
+        process.exit(0);
+      }
+      if (labels.includes('render-preview')) {
+        console.log(`PR #${REVIEW_ID} is labelled "render-preview": the preview builds on Render; skipping Netlify.`);
         process.exit(0);
       }
       console.log(`PR #${REVIEW_ID} is labelled "preview": building this deploy preview.`);
