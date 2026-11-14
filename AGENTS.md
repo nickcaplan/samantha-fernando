@@ -60,7 +60,7 @@ If CodeRabbit is rate-limited or skipped, use the configured Robin fallback only
 
 ## Independent PR review
 
-Before a PR is presented for a merge decision, have a reviewer other than the author review the exact head commit. Read the complete diff, relevant surrounding code, existing instructions and linked requirements. Recheck the head before posting; a later code change needs review of the updated revision. Review is advice, not permission to merge: wait for Nick's explicit merge approval for that PR and confirm required checks are green.
+Before a PR is presented for a merge decision, have a reviewer other than the author review the exact head commit. Read the complete diff, relevant surrounding code, existing instructions and linked requirements. Recheck the head before posting; a later code change needs review of the updated revision. Review is advice, not permission to merge: wait for Nick's explicit merge approval for that PR and confirm required checks are green. An urgent fix may skip checks only with Nick's explicit yes for that fix; never change branch protection to bypass checks.
 
 Use this review prompt, applying the repository-specific focus below:
 
@@ -75,7 +75,7 @@ Use this review prompt, applying the repository-specific focus below:
 - Verify regression tests cover the actual behaviour and defect. Run the applicable checks using current repository commands; inspect CI for the exact head. State the commands, results and any blocked or omitted checks. A build or mocked test alone does not prove live behaviour.
 - For loading, assets, animation or runtime changes, compare like-for-like before/after performance on phone and desktop, including cold and warm loads where relevant. Report missing baselines as unmeasured, not zero impact.
 - Inspect related open PRs for overlapping code, conflicting copy or behaviour and required merge order. Flag unrelated changes rather than silently widening the scope.
-- For visible changes, check that the PR description contains current before-and-after phone and desktop screenshots of the actual revision, replacing stale evidence. Previews are opt in: do not start a hosted preview without a request. If one was requested, verify the served revision and include its observed deep link. Documentation-only changes should say why visual evidence is not applicable.
+- For visible changes, check that the PR description contains current before-and-after phone and desktop screenshots of the actual revision, replacing stale evidence. Previews are opt in: do not start a hosted preview without a request. If one was requested, verify the served revision and include its observed deep link in the PR description. Documentation-only changes should say why visual evidence is not applicable.
 
 ### Review report
 
