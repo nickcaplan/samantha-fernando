@@ -97,3 +97,37 @@ Review this checklist weekly and after a missed regression, a significant archit
 - Keep deterministic mocked-provider tests in CI and report their limits separately from live media checks. Check loading, cancellation and failure states, keyboard controls and the soundbar beside consent UI where affected.
 - Check normal and enlarged text on phone, tablet and desktop in both supported themes; do not impose another site's default theme.
 - Current checks include `npm run test:unit`, `npm test` (Chromium) and `npm run test:all` (the complete browser matrix). Rebuild `assets/tailwind.min.css` with `npm run build:css` after utility-class changes. Read the current test strategy for production-output checks and distinguish fallback fixtures from live CMS content.
+
+## Production QA agents
+
+Two standing QA prompts run against the live production site. The post-merge prompt runs after every merge to main; the general prompt runs twice a day. QA findings are advice, not permission to change code: fixes still go through a PR with independent review and Nick's explicit merge approval.
+
+### Post-merge production QA prompt (runs after every merge)
+
+> A change has just merged to main and reached production. Test the live site thoroughly. First read the merged PR and its complete diff: the agreed requirements, the intended behaviour and the exact code paths changed. Then exercise the changed functionality in production with varied data and realistic mutations: empty, partial and full states; minimum, typical and extreme values; invalid and unexpected input; repeated actions; and interrupted flows such as navigating away mid-task. Follow each code path the change can take, not only the happy path. Check neighbouring pages, shared components and shared formatters for regressions. Inspect rendered phone, tablet and desktop layouts in every supported theme, with normal and enlarged text where the site supports it. Report only verified results and mark anything not exercised as not checked.
+
+Post the result as a comment on the merged PR:
+
+1. Start with **Passed**, **Issues found** or **Not checked**. Identify the merge commit SHA and PR number tested.
+2. Number each finding with severity (critical, high, medium or low), reproduction steps, expected versus actual behaviour and the environment (device class, viewport, theme, text size).
+3. List what was checked and how, and what was not checked and why. A blocked check is not a pass.
+
+Open a GitHub issue for each reproducible defect and link it from the comment. Do not commit fixes directly.
+
+### General production QA prompt (runs twice a day)
+
+> Explore the live production site as an adversarial visitor and try to break it. Do not follow a fixed script: probe forms, navigation, state and media with sequences a real user could produce. Try rapid repeated clicks, double submission, back and forward navigation mid-flow, deep links, stale or hand-edited local state, malformed and over-long input, special characters, boundary viewport sizes, slow or interrupted network and theme or text-size changes mid-task. Cross the boundaries the site relies on: signed-in versus signed-out state, filters and pagination at their edges, players and modals opened in unusual orders, empty and over-full content. Check complete journeys, not isolated components. Never enter real personal data, never trigger real purchases, bookings, emails or external form submissions and never attempt to access or modify another user's data. Report only verified, reproduced results; mark suspected but unreproduced issues as unconfirmed.
+
+Report the result through the agent's normal channel:
+
+1. Start with **No issues found**, **Issues found** or **Not checked**.
+2. For each reproducible defect, open a GitHub issue with severity, reproduction steps, expected versus actual behaviour and the environment. Check open issues first and update an existing issue instead of filing a duplicate.
+3. List the areas covered and the areas not covered. State clearly when a run was cut short.
+
+### Samantha Fernando site QA focus
+
+- The live site is `www.samanthafernando.com`. Cover the homepage and the Works, Listen and Watch catalogue pages, which share one template.
+- Real audio playback is the critical path. SoundCloud players and Spotify rows must actually produce sound; pause and resume must not restart the track; starting one source should stop any other. Verify with real playback, not mocked or hidden players, and check the sound bar state.
+- YouTube cards open an in-page modal: open and close it repeatedly and across several cards.
+- Exercise the cookie banner accept and reject paths, and check the biography, which is built from Sanity content at build time.
+- Never submit the contact form: it sends a real enquiry through Formspree. Check client-side validation only, without a successful submit.
