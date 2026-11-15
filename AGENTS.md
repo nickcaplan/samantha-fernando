@@ -73,9 +73,26 @@ Use this review prompt, applying the repository-specific focus below:
 - For UI changes, exercise keyboard access, focus order and restoration, semantics, contrast, reduced motion and enlarged text. Inspect actual rendered phone, tablet and desktop layouts in supported themes. Use Android/Pixel 8 as the phone reference where practical; distinguish emulation from a real device. Check the complete affected page and journey, not just isolated components or screenshots.
 - Check readability, wrapping, spacing, overflow, hierarchy and consistency across affected pages. Watch implemented animations and exercise controls, including repeated use, loading and failures.
 - Verify regression tests cover the actual behaviour and defect. Run the applicable checks using current repository commands; inspect CI for the exact head. State the commands, results and any blocked or omitted checks. A build or mocked test alone does not prove live behaviour.
+- Show that each new regression test fails without the fix: revert the change locally, watch it fail, restore the fix and watch it pass. If an assertion cannot fail in some environments (for example font-metric-dependent geometry or sandbox fonts), note that next to the test and verify the structural claim directly in the review instead of relying on the test alone.
+- Run the full suite (`npm test`) on the exact head before calling a PR ready, not only the spec touched.
+- Keep the PR title and description matched to the actual scope; retitle or split if the change outgrows them. Split without asking any PR whose diff exceeds the automated reviewers' limit (about 20,000 characters) or is otherwise too large to review properly.
 - For loading, assets, animation or runtime changes, compare like-for-like before/after performance on phone and desktop, including cold and warm loads where relevant. Report missing baselines as unmeasured, not zero impact.
 - Inspect related open PRs for overlapping code, conflicting copy or behaviour and required merge order. Flag unrelated changes rather than silently widening the scope.
 - For visible changes, check that the PR description contains current before-and-after phone and desktop screenshots of the actual revision, replacing stale evidence. Previews are opt in: do not start a hosted preview without a request. If one was requested, verify the served revision and include its observed deep link in the PR description. Documentation-only changes should say why visual evidence is not applicable.
+
+### Additional review checks
+
+1. Constants sweep: list every literal value (px/rem/em/vw sizes, breakpoints, timeouts, URLs, paths) appearing more than once in the diff or mirrored between CSS and test expectations; flag each as an advisory (shared custom property/constant, or a comment tying the copies).
+2. Test assertion quality: for each new or changed test, assess assertion strength: exact pixel equality where rendering can round (suggest a tolerance), geometry checks that do not prove visibility, thresholds copied from the implementation (drift risk), and whether a simulated condition faithfully models the real one; flag it or document the proxy's rationale.
+3. Data and generated files: for new or changed data files, check format hygiene (parseable, trailing newline, diff-friendly or justified-compact) and schema documentation (field meanings, null semantics, versioning); flag missing documentation as advisory.
+4. Selector and structure maintainability: flag long :not() exclusion chains vs opt-in classes, descendant combinators that may over-match, unnamed container queries where several containers exist, and derived values that can drift from their source.
+5. Script and workflow hygiene: check injected-clock consistency (no direct now() where a time parameter exists), resource bounds checked before consumption, logging with timestamp/context, and hardcoded URLs/paths vs configurability; advisory severity.
+6. Comment accuracy: verify comments that reference tests, files or behavior against what actually exists.
+7. Calibration: before raising any of the above, check design intent - fail-closed strictness, provider-owned identifiers, deliberate single-purpose scope. A deliberate, verified trade-off is a note, not a finding.
+8. Bot cross-check: every review comment names what Robin and CodeRabbit flagged on the PR (or that no bot review exists), which of their findings this review did not raise, and why each is or is not valid.
+9. Evidence bar: every finding carries the file, the line and a concrete failure scenario - who or what reaches it, what input or state triggers it, and what visibly goes wrong. A candidate finding without a reachable failure scenario is dropped or downgraded to a note.
+10. Clean results: "no changes needed" is a valid outcome. When the change is fully correct, say so plainly and stop; never invent findings or pad advisories to justify the review.
+11. Severity rubric: assign severity from demonstrated impact - reachability, preconditions and blast radius - separately from confidence in the evidence. State both when they diverge (for example "low severity, high confidence" or "high severity, low confidence - verify before acting").
 
 ### Review report
 
