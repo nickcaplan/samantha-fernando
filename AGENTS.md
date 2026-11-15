@@ -80,6 +80,17 @@ Use this review prompt, applying the repository-specific focus below:
 - Inspect related open PRs for overlapping code, conflicting copy or behaviour and required merge order. Flag unrelated changes rather than silently widening the scope.
 - For visible changes, check that the PR description contains current before-and-after phone and desktop screenshots of the actual revision, replacing stale evidence. Previews are opt in: do not start a hosted preview without a request. If one was requested, verify the served revision and include its observed deep link in the PR description. Documentation-only changes should say why visual evidence is not applicable.
 
+### Additional review checks
+
+1. Constants sweep: list every literal value (px/rem/em/vw sizes, breakpoints, timeouts, URLs, paths) appearing more than once in the diff or mirrored between CSS and test expectations; flag each as an advisory (shared custom property/constant, or a comment tying the copies).
+2. Test assertion quality: for each new or changed test, assess assertion strength: exact pixel equality where rendering can round (suggest a tolerance), geometry checks that do not prove visibility, thresholds copied from the implementation (drift risk), and whether a simulated condition faithfully models the real one; flag it or document the proxy's rationale.
+3. Data and generated files: for new or changed data files, check format hygiene (parseable, trailing newline, diff-friendly or justified-compact) and schema documentation (field meanings, null semantics, versioning); flag missing documentation as advisory.
+4. Selector and structure maintainability: flag long :not() exclusion chains vs opt-in classes, descendant combinators that may over-match, unnamed container queries where several containers exist, and derived values that can drift from their source.
+5. Script and workflow hygiene: check injected-clock consistency (no direct now() where a time parameter exists), resource bounds checked before consumption, logging with timestamp/context, and hardcoded URLs/paths vs configurability; advisory severity.
+6. Comment accuracy: verify comments that reference tests, files or behavior against what actually exists.
+7. Calibration: before raising any of the above, check design intent - fail-closed strictness, provider-owned identifiers, deliberate single-purpose scope. A deliberate, verified trade-off is a note, not a finding.
+8. Bot cross-check: every review comment names what Robin and CodeRabbit flagged on the PR (or that no bot review exists), which of their findings this review did not raise, and why each is or is not valid.
+
 ### Review report
 
 Post the review as a comment on the PR itself, not in a separate document:
