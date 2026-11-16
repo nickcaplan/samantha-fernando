@@ -93,6 +93,7 @@ Use this review prompt, applying the repository-specific focus below:
 9. Evidence bar: every finding carries the file, the line and a concrete failure scenario - who or what reaches it, what input or state triggers it, and what visibly goes wrong. A candidate finding without a reachable failure scenario is dropped or downgraded to a note.
 10. Clean results: "no changes needed" is a valid outcome. When the change is fully correct, say so plainly and stop; never invent findings or pad advisories to justify the review.
 11. Severity rubric: assign severity from demonstrated impact - reachability, preconditions and blast radius - separately from confidence in the evidence. State both when they diverge (for example "low severity, high confidence" or "high severity, low confidence - verify before acting").
+12. Unexpected wrapping: for UI changes, check wraps, orphans and mid-word breaks at 320, 390 and 768 widths and at 200% text, in light and dark. An intended wrap is a note, not a finding.
 
 ### Review report
 
