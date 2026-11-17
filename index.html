@@ -963,6 +963,11 @@
             .performance-list, .recent-past-performances,
             #featured-projects > .grid { grid-template-columns: minmax(0, 1fr); }
         }
+        /* Some serif fallbacks are wider in Firefox at the narrowest enlarged
+           size. Keep whole words readable even before a webfont is available. */
+        @container (width < 11rem) {
+            .performance-entry h3 { font-size: 1.125rem; }
+        }
         @container (width < 22rem) {
             .work-media-actions--multiple { flex-direction: column; align-items: flex-start; }
             .work-media-actions--multiple .work-media-action { width: min(10.5rem, 100%); }
