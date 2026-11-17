@@ -957,6 +957,21 @@
             #tab-writing section article.glass-panel { padding-inline: min(1rem, 5vw); }
         }
         @media (max-width: 767px) { .performance-list, .performance-tour-stops { grid-template-columns: 1fr; } .performance-tour { grid-column: auto; } .performance-entry > .performance-link { margin-top: 1rem; padding-top: 0; } }
+        /* Root-relative container thresholds follow enlarged text, unlike viewport
+           breakpoints. Give cards and action labels room before emergency wrap. */
+        @container (width < 32rem) {
+            .performance-list, .recent-past-performances,
+            #featured-projects > .grid { grid-template-columns: minmax(0, 1fr); }
+        }
+        /* Some serif fallbacks are wider in Firefox at the narrowest enlarged
+           size. Keep whole words readable even before a webfont is available. */
+        @container (width < 11rem) {
+            .performance-entry h3 { font-size: 1.125rem; }
+        }
+        @container (width < 22rem) {
+            .work-media-actions--multiple { flex-direction: column; align-items: flex-start; }
+            .work-media-actions--multiple .work-media-action { width: min(10.5rem, 100%); }
+        }
     </style>
 </head>
 <body class="light-mode min-h-screen flex flex-col selection:bg-amber-800/30 selection:text-amber-200">

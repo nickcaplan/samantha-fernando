@@ -29,7 +29,7 @@
                         <img src="https://i.ytimg.com/vi/${escape(videoId)}/hqdefault.jpg" alt="" class="w-full h-full object-cover" loading="lazy">
                         <span class="absolute inset-0 flex items-center justify-center bg-black/25 group-hover:bg-black/40 transition-colors"><span class="w-14 h-14 rounded-full bg-amber-600/90 text-white flex items-center justify-center text-xl shadow-xl transition-transform group-hover:scale-110"><i class="fa-solid fa-play ml-1" aria-hidden="true"></i></span></span>
                     </button><div class="space-y-1"><div class="flex items-center gap-3"><span class="text-xs font-mono text-amber-400">${escape(item.year || 'Undated')}</span></div>
-                    <h3 class="text-xl font-serif text-neutral-100 group-hover:text-amber-300 transition-colors">${escape(item.title)}</h3><p class="text-xs text-neutral-400 leading-relaxed">${escape(item.detail)}</p></div></article>`;
+                    <h3 class="text-xl font-serif text-neutral-100 group-hover:text-amber-300 transition-colors">${escape(item.title).replaceAll('/', '/<wbr>')}</h3><p class="text-xs text-neutral-400 leading-relaxed">${escape(item.detail)}</p></div></article>`;
             }
             const work = view === 'all' ? item : related(item);
             const actions = view === 'all' ? media.filter(entry => entry.workId === item.id).sort((a, b) => (a.actionOrder || 0) - (b.actionOrder || 0) || a.key.localeCompare(b.key)) : [item];
@@ -37,7 +37,7 @@
                 <div class="space-y-1"><div class="flex flex-wrap items-center gap-3"><span class="text-xs font-mono text-amber-400">${escape(item.year || 'Undated')}</span>
                 ${work ? `<span class="px-2.5 py-0.5 rounded-full bg-neutral-800 text-neutral-300 text-[10px] font-mono">${categories[work.category]}</span>` : ''}
                 ${item.duration ? `<span class="text-xs font-mono text-neutral-500">${escape(item.duration)}</span>` : ''}</div>
-                <h3 class="text-lg font-serif text-neutral-100 group-hover:text-amber-300 transition-colors">${escape(item.title)}</h3>
+                <h3 class="text-lg font-serif text-neutral-100 group-hover:text-amber-300 transition-colors">${escape(item.title).replaceAll('/', '/<wbr>')}</h3>
                 <p class="text-xs text-neutral-400">${escape(view === 'all' ? item.instrumentation : item.detail)}</p>
                 ${view === 'all' ? `<div class="space-y-0.5 pt-1 text-xs text-neutral-500 font-serif-italic">${['commission', 'premiere', 'notes'].map(field => item[field] ? `<p>${field !== 'notes' ? `<span class="not-italic font-sans text-[10px] uppercase tracking-wider text-neutral-600">${field === 'commission' ? 'Commission' : 'Premiere'}</span> ` : ''}${escape(item[field])}</p>` : '').join('')}</div>` : ''}</div>
                 <div class="${view === 'all' ? `work-media-actions ${actions.length > 1 ? 'work-media-actions--multiple' : ''}` : 'media-catalog-actions flex items-center gap-2 pt-2 md:pt-0 md:mt-auto'}">${actions.map(action).join('')}</div></div>`;
