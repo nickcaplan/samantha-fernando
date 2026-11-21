@@ -1,7 +1,5 @@
 # Samantha Fernando Site
 
-If CodeRabbit is rate-limited or skipped, use the configured Robin fallback only when available and not paused. Respect shared quota limits and any active pause; do not retry across repositories or change keys/models to bypass a limit. A skipped or unavailable review is not a pass. Report the gap and wait for the owner's decision rather than bypassing a review gate.
-
 ## GitHub Pages
 
 - Repository: https://github.com/nickcaplan/samantha-fernando
@@ -89,10 +87,9 @@ Use this review prompt, applying the repository-specific focus below:
 5. Script and workflow hygiene: check injected-clock consistency (no direct now() where a time parameter exists), resource bounds checked before consumption, logging with timestamp/context, and hardcoded URLs/paths vs configurability; advisory severity.
 6. Comment accuracy: verify comments that reference tests, files or behavior against what actually exists.
 7. Calibration: before raising any of the above, check design intent - fail-closed strictness, provider-owned identifiers, deliberate single-purpose scope. A deliberate, verified trade-off is a note, not a finding.
-8. Bot cross-check: every review comment names what Robin and CodeRabbit flagged on the PR (or that no bot review exists), which of their findings this review did not raise, and why each is or is not valid.
-9. Evidence bar: every finding carries the file, the line and a concrete failure scenario - who or what reaches it, what input or state triggers it, and what visibly goes wrong. A candidate finding without a reachable failure scenario is dropped or downgraded to a note.
-10. Clean results: "no changes needed" is a valid outcome. When the change is fully correct, say so plainly and stop; never invent findings or pad advisories to justify the review.
-11. Severity rubric: assign severity from demonstrated impact - reachability, preconditions and blast radius - separately from confidence in the evidence. State both when they diverge (for example "low severity, high confidence" or "high severity, low confidence - verify before acting").
+8. Evidence bar: every finding carries the file, the line and a concrete failure scenario - who or what reaches it, what input or state triggers it, and what visibly goes wrong. A candidate finding without a reachable failure scenario is dropped or downgraded to a note.
+9. Clean results: "no changes needed" is a valid outcome. When the change is fully correct, say so plainly and stop; never invent findings or pad advisories to justify the review.
+10. Severity rubric: assign severity from demonstrated impact - reachability, preconditions and blast radius - separately from confidence in the evidence. State both when they diverge (for example "low severity, high confidence" or "high severity, low confidence - verify before acting").
 
 ### Review report
 
